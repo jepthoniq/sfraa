@@ -1,0 +1,390 @@
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import path from "path";
+import { fileURLToPath } from "url";
+import db from "./src/db.js";
+import { v4 as uuidv4 } from "uuid";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const JWT_SECRET = process.env.JWT_SECRET || "sufra-secret-key";
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Request logging
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+  });
+
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", time: new Date().toISOString() });
+  });
+
+  // --- Auth Middleware ---
+  const authenticate = (req: any, res: any, next: any) => {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded;
+      next();
+    } catch (e) {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  };
+
+  // --- Auth Routes ---
+  app.post("/api/auth/login", (req, res) => {
+    try {
+      const { email, password } = req.body;
+      // For demo/SaaS, we'll auto-register if user doesn't exist
+      let user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
+      
+      if (!user) {
+        const id = uuidv4();
+        const hashedPassword = bcrypt.hashSync(password || "password", 10);
+        db.prepare("INSERT INTO users (id, email, password, name) VALUES (?, ?, ?, ?)").run(id, email, hashedPassword, email.split('@')[0]);
+        user = { id, email, name: email.split('@')[0] };
+      }
+
+      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
+      res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    } catch (error) {
+      console.error("Login Route Error:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // --- Restaurant Routes ---
+  app.get("/api/restaurants/me", authenticate, (req: any, res) => {
+    const restaurant = db.prepare("SELECT * FROM restaurants WHERE owner_id = ?").get(req.user.id) as any;
+    if (!restaurant) {
+      // Create default restaurant for new user
+      const id = uuidv4();
+      const slug = `rest-${req.user.id.slice(0, 5)}`;
+      db.prepare("INSERT INTO restaurants (id, owner_id, name, slug) VALUES (?, ?, ?, ?)").run(id, req.user.id, `${req.user.name}'s Restaurant`, slug);
+      const newRest = db.prepare("SELECT * FROM restaurants WHERE id = ?").get(id) as any;
+      return res.json({
+        ...newRest,
+        ownerId: newRest.owner_id,
+        minOrder: newRest.min_order,
+        isDeliveryEnabled: !!newRest.is_delivery_enabled,
+        subscriptionStatus: newRest.subscription_status
+      });
+    }
+    res.json({
+      ...restaurant,
+      ownerId: restaurant.owner_id,
+      minOrder: restaurant.min_order,
+      isDeliveryEnabled: !!restaurant.is_delivery_enabled,
+      subscriptionStatus: restaurant.subscription_status
+    });
+  });
+
+  app.get("/api/restaurants/public/:slug", (req, res) => {
+    const restaurant = db.prepare("SELECT * FROM restaurants WHERE slug = ?").get(req.params.slug) as any;
+    if (!restaurant) return res.status(404).json({ error: "Not found" });
+    res.json({
+      ...restaurant,
+      ownerId: restaurant.owner_id,
+      minOrder: restaurant.min_order,
+      isDeliveryEnabled: !!restaurant.is_delivery_enabled,
+      whatsappNumber: restaurant.whatsapp_number,
+      subscriptionStatus: restaurant.subscription_status
+    });
+  });
+
+  app.put("/api/restaurants/me", authenticate, (req: any, res) => {
+    const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber } = req.body;
+    db.prepare(`
+      UPDATE restaurants 
+      SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?
+      WHERE owner_id = ?
+    `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, req.user.id);
+    res.json({ success: true });
+  });
+
+  // --- Categories ---
+  app.get("/api/restaurants/:id/categories", (req, res) => {
+    const categories = db.prepare("SELECT * FROM categories WHERE restaurant_id = ? ORDER BY sort_order ASC").all(req.params.id);
+    res.json(categories.map((c: any) => ({
+      ...c,
+      order: c.sort_order
+    })));
+  });
+
+  app.post("/api/restaurants/:id/categories", authenticate, (req, res) => {
+    const { name } = req.body;
+    const id = uuidv4();
+    const count = (db.prepare("SELECT COUNT(*) as count FROM categories WHERE restaurant_id = ?").get(req.params.id) as any).count;
+    db.prepare("INSERT INTO categories (id, restaurant_id, name, sort_order) VALUES (?, ?, ?, ?)").run(id, req.params.id, name, count);
+    res.json({ id, name });
+  });
+
+  app.put("/api/categories/:id", authenticate, (req, res) => {
+    const { name } = req.body;
+    db.prepare("UPDATE categories SET name = ? WHERE id = ?").run(name, req.params.id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/categories/:id", authenticate, (req, res) => {
+    // Also delete items in this category or set their category to null
+    db.prepare("DELETE FROM items WHERE category_id = ?").run(req.params.id);
+    db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  // --- Items ---
+  app.get("/api/restaurants/:id/items", (req, res) => {
+    const items = db.prepare("SELECT * FROM items WHERE restaurant_id = ?").all(req.params.id);
+    res.json(items.map((i: any) => ({ 
+      ...i, 
+      isAvailable: !!i.is_available,
+      categoryId: i.category_id 
+    })));
+  });
+
+  app.post("/api/restaurants/:id/items", authenticate, (req, res) => {
+    const { name, description, price, image, categoryId } = req.body;
+    const id = uuidv4();
+    db.prepare("INSERT INTO items (id, restaurant_id, category_id, name, description, price, image) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, req.params.id, categoryId, name, description, price, image);
+    res.json({ id });
+  });
+
+  app.put("/api/items/:id", authenticate, (req, res) => {
+    const { name, description, price, image, categoryId } = req.body;
+    db.prepare("UPDATE items SET name = ?, description = ?, price = ?, image = ?, category_id = ? WHERE id = ?").run(name, description, price, image, categoryId, req.params.id);
+    res.json({ success: true });
+  });
+
+  app.patch("/api/items/:id/toggle", authenticate, (req, res) => {
+    const item = db.prepare("SELECT * FROM items WHERE id = ?").get(req.params.id) as any;
+    db.prepare("UPDATE items SET is_available = ? WHERE id = ?").run(item.is_available ? 0 : 1, req.params.id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/items/:id", authenticate, (req, res) => {
+    db.prepare("DELETE FROM items WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  // --- Zones ---
+  app.get("/api/restaurants/:id/zones", (req, res) => {
+    const zones = db.prepare("SELECT * FROM zones WHERE restaurant_id = ?").all(req.params.id);
+    res.json(zones);
+  });
+
+  app.post("/api/restaurants/:id/zones", authenticate, (req, res) => {
+    const { name, fee } = req.body;
+    const id = uuidv4();
+    db.prepare("INSERT INTO zones (id, restaurant_id, name, fee) VALUES (?, ?, ?, ?)").run(id, req.params.id, name, fee);
+    res.json({ id });
+  });
+
+  app.delete("/api/zones/:id", authenticate, (req, res) => {
+    db.prepare("DELETE FROM zones WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  // --- Orders ---
+  app.get("/api/restaurants/:id/orders", authenticate, (req, res) => {
+    const orders = db.prepare("SELECT * FROM orders WHERE restaurant_id = ? ORDER BY created_at DESC").all(req.params.id);
+    const ordersWithItems = orders.map((o: any) => {
+      const items = db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(o.id);
+      return { 
+        ...o, 
+        items,
+        restaurantId: o.restaurant_id,
+        deliveryFee: o.delivery_fee,
+        customerName: o.customer_name,
+        customerPhone: o.customer_phone,
+        customerAddress: o.customer_address,
+        customerZone: o.customer_zone,
+        googleMapsLink: o.google_maps_link,
+        tableNumber: o.table_number,
+        createdAt: new Date(o.created_at)
+      };
+    });
+    res.json(ordersWithItems);
+  });
+
+  app.get("/api/orders/:id", (req, res) => {
+    const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id) as any;
+    if (!order) return res.status(404).json({ error: "Not found" });
+    const items = db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(order.id);
+    res.json({ 
+      ...order, 
+      items, 
+      restaurantId: order.restaurant_id,
+      deliveryFee: order.delivery_fee,
+      customerName: order.customer_name,
+      customerPhone: order.customer_phone,
+      customerAddress: order.customer_address,
+      customerZone: order.customer_zone,
+      googleMapsLink: order.google_maps_link,
+      tableNumber: order.table_number,
+      createdAt: new Date(order.created_at) 
+    });
+  });
+
+  app.get("/api/restaurants/:id", (req, res) => {
+    const restaurant = db.prepare("SELECT * FROM restaurants WHERE id = ?").get(req.params.id) as any;
+    if (!restaurant) return res.status(404).json({ error: "Not found" });
+    res.json({
+      ...restaurant,
+      ownerId: restaurant.owner_id,
+      minOrder: restaurant.min_order,
+      isDeliveryEnabled: !!restaurant.is_delivery_enabled,
+      whatsappNumber: restaurant.whatsapp_number,
+      subscriptionStatus: restaurant.subscription_status
+    });
+  });
+
+  app.post("/api/orders", (req, res) => {
+    const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber } = req.body;
+    
+    // Check if user is blocked
+    if (customerPhone) {
+      const isBlocked = db.prepare("SELECT 1 FROM blocked_users WHERE restaurant_id = ? AND phone = ?").get(restaurantId, customerPhone);
+      if (isBlocked) {
+        return res.status(403).json({ error: "عذراً، لا يمكن إتمام الطلب. يرجى التواصل مع المطعم." });
+      }
+    }
+
+    const orderId = uuidv4();
+    
+    db.prepare(`
+      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber);
+
+    for (const item of items) {
+      db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);
+    }
+
+    res.json({ id: orderId });
+  });
+
+  app.patch("/api/orders/:id/status", authenticate, (req, res) => {
+    const { status } = req.body;
+    db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, req.params.id);
+    res.json({ success: true });
+  });
+
+  app.patch("/api/orders/:id/cancel", (req, res) => {
+    const order = db.prepare("SELECT status FROM orders WHERE id = ?").get(req.params.id) as any;
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: "لا يمكن إلغاء الطلب بعد البدء في تحضيره" });
+    }
+    db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/orders/:id", authenticate, (req, res) => {
+    const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id) as any;
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    
+    // Only allow deleting completed or cancelled orders
+    if (order.status !== "completed" && order.status !== "cancelled") {
+      return res.status(400).json({ error: "لا يمكن حذف الطلب إلا إذا كان مكتملاً أو ملغياً" });
+    }
+    
+    db.prepare("DELETE FROM order_items WHERE order_id = ?").run(req.params.id);
+    db.prepare("DELETE FROM messages WHERE order_id = ?").run(req.params.id);
+    db.prepare("DELETE FROM orders WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  // --- Chat Routes ---
+  app.get("/api/orders/:id/messages", (req, res) => {
+    const messages = db.prepare("SELECT * FROM messages WHERE order_id = ? ORDER BY created_at ASC").all(req.params.id);
+    res.json(messages.map((m: any) => ({
+      ...m,
+      orderId: m.order_id,
+      createdAt: m.created_at
+    })));
+  });
+
+  app.post("/api/orders/:id/messages", (req, res) => {
+    const { sender, text } = req.body;
+    const id = uuidv4();
+    db.prepare("INSERT INTO messages (id, order_id, sender, text) VALUES (?, ?, ?, ?)").run(id, req.params.id, sender, text);
+    res.json({ id, sender, text, createdAt: new Date().toISOString() });
+  });
+
+  // --- Analytics ---
+  app.get("/api/restaurants/:id/analytics", authenticate, (req, res) => {
+    const totalRevenue = db.prepare("SELECT SUM(total) as total FROM orders WHERE restaurant_id = ? AND status = 'completed'").get(req.params.id) as any;
+    const orderCount = db.prepare("SELECT COUNT(*) as count FROM orders WHERE restaurant_id = ?").get(req.params.id) as any;
+    const deliveryCount = db.prepare("SELECT COUNT(*) as count FROM orders WHERE restaurant_id = ? AND type = 'delivery'").get(req.params.id) as any;
+    const deliveryRevenue = db.prepare("SELECT SUM(total) as total FROM orders WHERE restaurant_id = ? AND type = 'delivery' AND status = 'completed'").get(req.params.id) as any;
+    
+    const zoneStats = db.prepare(`
+      SELECT customer_zone as name, COUNT(*) as value 
+      FROM orders 
+      WHERE restaurant_id = ? AND type = 'delivery' 
+      GROUP BY customer_zone
+    `).all(req.params.id);
+
+    res.json({
+      totalRevenue: totalRevenue.total || 0,
+      orderCount: orderCount.count || 0,
+      deliveryCount: deliveryCount.count || 0,
+      deliveryRevenue: deliveryRevenue.total || 0,
+      zoneData: zoneStats
+    });
+  });
+
+  // --- Blocked Users ---
+  app.get("/api/restaurants/:id/blocked", authenticate, (req, res) => {
+    const blocked = db.prepare("SELECT * FROM blocked_users WHERE restaurant_id = ?").all(req.params.id);
+    res.json(blocked);
+  });
+
+  app.post("/api/restaurants/:id/block", authenticate, (req, res) => {
+    const { phone } = req.body;
+    const id = uuidv4();
+    try {
+      db.prepare("INSERT INTO blocked_users (id, restaurant_id, phone) VALUES (?, ?, ?)").run(id, req.params.id, phone);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(400).json({ error: "المستخدم محظور بالفعل" });
+    }
+  });
+
+  app.delete("/api/restaurants/:id/unblock/:phone", authenticate, (req, res) => {
+    db.prepare("DELETE FROM blocked_users WHERE restaurant_id = ? AND phone = ?").run(req.params.id, req.params.phone);
+    res.json({ success: true });
+  });
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();

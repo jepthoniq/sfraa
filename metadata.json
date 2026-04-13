@@ -1,0 +1,5 @@
+{
+  "name": "Sufra SaaS - Restaurant QR & Delivery Platform",
+  "description": "A full-stack SaaS platform for Iraqi restaurants featuring QR menus, advanced delivery zone management, and real-time order tracking.",
+  "requestFramePermissions": ["geolocation"]
+}
