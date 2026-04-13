@@ -4,9 +4,9 @@ import { api } from "../lib/api";
 import { Restaurant, MenuCategory, MenuItem, DeliveryZone, OrderItem } from "../types";
 import { formatCurrency, cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare } from "lucide-react";
-import LocationPicker from "../components/LocationPicker";
+import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban } from "lucide-react";
 import Chat from "../components/Chat";
+import LoadingScreen from "../components/LoadingScreen";
 
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
@@ -45,6 +45,7 @@ export default function PublicMenu() {
   const [tableNumber, setTableNumber] = useState("");
   const [showMap, setShowMap] = useState(false);
   const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("sufra_cart", JSON.stringify(cart));
@@ -150,6 +151,10 @@ export default function PublicMenu() {
       try {
         const restData = await api.get(`/api/restaurants/public/${slug}`);
         setRestaurant(restData);
+        
+        if (restData.isIpBlocked) {
+          setIsBlocked(true);
+        }
 
         const cats = await api.get(`/api/restaurants/${restData.id}/categories`);
         setCategories(cats);
@@ -190,6 +195,30 @@ export default function PublicMenu() {
     });
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert("متصفحك لا يدعم تحديد الموقع");
+      return;
+    }
+    
+    setIsFetchingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCoords({ lat, lng });
+        setGoogleMapsLink(`https://www.google.com/maps?q=${lat},${lng}`);
+        setIsFetchingLocation(false);
+      },
+      (err) => {
+        console.error(err);
+        alert("فشل في تحديد الموقع. يرجى التأكد من تفعيل خدمات الموقع في جهازك.");
+        setIsFetchingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const deliveryFee = orderType === "delivery" ? (selectedZone?.fee || 0) : 0;
   const total = subtotal + deliveryFee;
@@ -202,8 +231,8 @@ export default function PublicMenu() {
         return;
       }
     } else {
-      if (!tableNumber || !customerPhone) {
-        alert("يرجى إدخال رقم الطاولة ورقم الهاتف");
+      if (!tableNumber) {
+        alert("يرجى إدخال رقم الطاولة");
         return;
       }
     }
@@ -257,50 +286,37 @@ export default function PublicMenu() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
-        <motion.div
-          animate={{ 
-            scale: [1, 1.1, 1],
-            rotate: [0, 180, 360],
-            borderRadius: ["20%", "50%", "20%"]
-          }}
-          transition={{ 
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="w-16 h-16 bg-red-600 mb-6 shadow-xl shadow-red-100"
-        />
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
-        >
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">سفرة</h2>
-          <div className="flex items-center justify-center gap-1">
-            <span className="w-2 h-2 bg-red-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
-            <span className="w-2 h-2 bg-red-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
-            <span className="w-2 h-2 bg-red-600 rounded-full animate-bounce" />
-          </div>
-        </motion.div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (isBlocked) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center" dir="rtl">
-        <div className="w-24 h-24 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">
-          <Ban className="w-12 h-12" />
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">عذراً، تم حظر وصولك</h1>
+        {restaurant?.logo ? (
+          <img src={restaurant.logo} alt={restaurant.name} className="w-24 h-24 rounded-full object-cover mb-6 shadow-md border-4 border-white" />
+        ) : (
+          <div className="w-24 h-24 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6 shadow-md border-4 border-white">
+            <Ban className="w-12 h-12" />
+          </div>
+        )}
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">{restaurant?.name || "المطعم"}</h1>
+        <h2 className="text-xl font-bold text-red-600 mb-4">عذراً، تم حظر وصولك</h2>
         <p className="text-gray-600 mb-8 max-w-xs leading-relaxed">
-          لقد تم حظر رقمك من قبل إدارة المطعم بسبب مخالفة سياسات الطلب. يرجى التواصل مع الإدارة إذا كنت تعتقد أن هذا خطأ.
+          لقد تم حظرك من قبل المطعم. يرجى التواصل مع الإدارة إذا كنت تعتقد أن هذا خطأ.
         </p>
+        {restaurant?.whatsappNumber && (
+          <a 
+            href={`https://wa.me/${restaurant.whatsappNumber.replace(/\D/g, '')}`}
+            target="_blank"
+            className="bg-green-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-green-600 transition-all mb-4"
+          >
+            <MessageCircle className="w-5 h-5" />
+            تواصل مع الإدارة
+          </a>
+        )}
         <button 
           onClick={() => window.location.reload()}
-          className="bg-red-600 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all"
+          className="text-gray-500 font-medium hover:text-gray-700 transition-all"
         >
           تحديث الصفحة
         </button>
@@ -638,32 +654,40 @@ export default function PublicMenu() {
                         />
                         
                         <div className="space-y-3">
-                          <div className={cn(
-                            "w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all",
-                            coords ? "text-green-600" : "text-blue-600"
-                          )}>
-                            <MapIcon className="w-5 h-5" />
-                            {coords ? "تم تحديد الموقع بنجاح" : "حدد موقعك على الخريطة"}
-                          </div>
-
-                          <div className="overflow-hidden rounded-2xl border border-gray-100 shadow-sm">
-                            <LocationPicker 
-                              onLocationSelect={(lat, lng) => {
-                                setCoords({lat, lng});
-                                setGoogleMapsLink(`https://www.google.com/maps?q=${lat},${lng}`);
-                              }}
-                              initialLocation={coords ? [coords.lat, coords.lng] : undefined}
-                            />
-                          </div>
+                          <button
+                            type="button"
+                            onClick={handleGetLocation}
+                            disabled={isFetchingLocation}
+                            className={cn(
+                              "w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm",
+                              coords 
+                                ? "bg-green-50 text-green-600 border border-green-200" 
+                                : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100",
+                              isFetchingLocation && "opacity-70 cursor-not-allowed"
+                            )}
+                          >
+                            {isFetchingLocation ? (
+                              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <MapPin className="w-5 h-5" />
+                            )}
+                            {isFetchingLocation 
+                              ? "جاري تحديد الموقع..." 
+                              : coords 
+                                ? "تم تحديد الموقع بنجاح (اضغط للتحديث)" 
+                                : "جلب موقعي الحالي"}
+                          </button>
                         </div>
 
-                        <input 
-                          type="text" 
-                          placeholder="رابط الموقع (يتم تحديثه تلقائياً من الخريطة)" 
-                          className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 text-xs text-gray-400"
-                          value={googleMapsLink}
-                          readOnly
-                        />
+                        {coords && (
+                          <input 
+                            type="text" 
+                            placeholder="رابط الموقع" 
+                            className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 text-xs text-gray-500"
+                            value={googleMapsLink}
+                            readOnly
+                          />
+                        )}
                       </>
                     ) : (
                       <div className="space-y-4">
@@ -673,13 +697,6 @@ export default function PublicMenu() {
                           className="w-full bg-gray-50 border-none rounded-xl py-3 px-4"
                           value={tableNumber}
                           onChange={(e) => setTableNumber(e.target.value)}
-                        />
-                        <input 
-                          type="tel" 
-                          placeholder="رقم الهاتف (للتحقق)" 
-                          className="w-full bg-gray-50 border-none rounded-xl py-3 px-4"
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
                         />
                       </div>
                     )}

@@ -32,14 +32,14 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [blockedPhones, setBlockedPhones] = useState<string[]>([]);
+  const [blockedIPs, setBlockedIPs] = useState<string[]>([]);
 
   useEffect(() => {
     if (!restaurantId) return;
     const fetchBlocked = async () => {
       try {
-        const data = await api.get(`/api/restaurants/${restaurantId}/blocked`);
-        setBlockedPhones(data.map((b: any) => b.phone));
+        const data = await api.get(`/api/restaurants/${restaurantId}/blocked-ips`);
+        setBlockedIPs(data.map((b: any) => b.ip));
       } catch (e) {
         console.error(e);
       }
@@ -112,17 +112,16 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
     }
   };
 
-  const toggleBlock = async (phone: string) => {
-    if (!restaurantId || !phone) return;
-    const isBlocked = blockedPhones.includes(phone);
+  const toggleBlock = async (ip: string) => {
+    if (!restaurantId || !ip) return;
+    const isBlocked = blockedIPs.includes(ip);
     try {
       if (isBlocked) {
-        await api.delete(`/api/restaurants/${restaurantId}/unblock/${phone}`);
-        setBlockedPhones(prev => prev.filter(p => p !== phone));
+        await api.delete(`/api/restaurants/${restaurantId}/unblock-ip/${ip}`);
+        setBlockedIPs(prev => prev.filter(p => p !== ip));
       } else {
-        // Removed confirm() as it might be blocked in iframes
-        await api.post(`/api/restaurants/${restaurantId}/block`, { phone });
-        setBlockedPhones(prev => [...prev, phone]);
+        await api.post(`/api/restaurants/${restaurantId}/block-ip`, { ip });
+        setBlockedIPs(prev => [...prev, ip]);
       }
     } catch (e) {
       console.error(e);
@@ -266,25 +265,25 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
         {/* Orders List */}
         <div className="lg:col-span-1 space-y-4 overflow-y-auto max-h-[calc(100vh-250px)] no-scrollbar pr-1">
           {filter === "blocked" ? (
-            blockedPhones.length === 0 ? (
+            blockedIPs.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-gray-200">
                 <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">لا توجد أرقام محظورة</p>
               </div>
             ) : (
-              blockedPhones.map(phone => (
-                <div key={phone} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+              blockedIPs.map(ip => (
+                <div key={ip} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
                       <Ban className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-bold text-gray-900">{phone}</p>
-                      <p className="text-xs text-gray-500">مستخدم محظور</p>
+                      <p className="font-bold text-gray-900">{ip}</p>
+                      <p className="text-xs text-gray-500">جهاز محظور</p>
                     </div>
                   </div>
                   <button 
-                    onClick={() => toggleBlock(phone)}
+                    onClick={() => toggleBlock(ip)}
                     className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all"
                   >
                     <ShieldCheck className="w-5 h-5" />
@@ -442,6 +441,13 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
                                 </div>
                               </div>
                             )}
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500"><Ban className="w-4 h-4" /></div>
+                              <div>
+                                <p className="text-xs text-gray-500">عنوان الجهاز (IP)</p>
+                                <p className="font-bold text-gray-900">{selectedOrder.customerIp || 'غير متاح'}</p>
+                              </div>
+                            </div>
                           </div>
                         )}
 
@@ -474,22 +480,25 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
                                 </a>
                               )}
                             </div>
-                            <button 
-                              onClick={() => toggleBlock(selectedOrder.customerPhone!)}
-                              className={cn(
-                                "w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all mt-2",
-                                blockedPhones.includes(selectedOrder.customerPhone) 
-                                  ? "bg-green-50 text-green-600 hover:bg-green-100" 
-                                  : "bg-red-50 text-red-600 hover:bg-red-100"
-                              )}
-                            >
-                              {blockedPhones.includes(selectedOrder.customerPhone) ? (
-                                <><ShieldCheck className="w-4 h-4" /> إلغاء الحظر</>
-                              ) : (
-                                <><Ban className="w-4 h-4" /> حظر هذا الرقم</>
-                              )}
-                            </button>
                           </>
+                        )}
+                        
+                        {selectedOrder.customerIp && (
+                          <button 
+                            onClick={() => toggleBlock(selectedOrder.customerIp!)}
+                            className={cn(
+                              "w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all mt-2",
+                              blockedIPs.includes(selectedOrder.customerIp) 
+                                ? "bg-green-50 text-green-600 hover:bg-green-100" 
+                                : "bg-red-50 text-red-600 hover:bg-red-100"
+                            )}
+                          >
+                            {blockedIPs.includes(selectedOrder.customerIp) ? (
+                              <><ShieldCheck className="w-4 h-4" /> إلغاء حظر الجهاز</>
+                            ) : (
+                              <><Ban className="w-4 h-4" /> حظر هذا الجهاز</>
+                            )}
+                          </button>
                         )}
                       </div>
                     </div>

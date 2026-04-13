@@ -93,13 +93,22 @@ async function startServer() {
   app.get("/api/restaurants/public/:slug", (req, res) => {
     const restaurant = db.prepare("SELECT * FROM restaurants WHERE slug = ?").get(req.params.slug) as any;
     if (!restaurant) return res.status(404).json({ error: "Not found" });
+    
+    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    let isIpBlocked = false;
+    if (ip) {
+      const blocked = db.prepare("SELECT 1 FROM blocked_ips WHERE restaurant_id = ? AND ip = ?").get(restaurant.id, ip);
+      if (blocked) isIpBlocked = true;
+    }
+
     res.json({
       ...restaurant,
       ownerId: restaurant.owner_id,
       minOrder: restaurant.min_order,
       isDeliveryEnabled: !!restaurant.is_delivery_enabled,
       whatsappNumber: restaurant.whatsapp_number,
-      subscriptionStatus: restaurant.subscription_status
+      subscriptionStatus: restaurant.subscription_status,
+      isIpBlocked
     });
   });
 
@@ -211,6 +220,7 @@ async function startServer() {
         customerZone: o.customer_zone,
         googleMapsLink: o.google_maps_link,
         tableNumber: o.table_number,
+        customerIp: o.customer_ip,
         createdAt: new Date(o.created_at)
       };
     });
@@ -232,6 +242,7 @@ async function startServer() {
       customerZone: order.customer_zone,
       googleMapsLink: order.google_maps_link,
       tableNumber: order.table_number,
+      customerIp: order.customer_ip,
       createdAt: new Date(order.created_at) 
     });
   });
@@ -252,6 +263,16 @@ async function startServer() {
   app.post("/api/orders", (req, res) => {
     const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber } = req.body;
     
+    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+
+    // Check if IP is blocked
+    if (ip) {
+      const isIpBlocked = db.prepare("SELECT 1 FROM blocked_ips WHERE restaurant_id = ? AND ip = ?").get(restaurantId, ip);
+      if (isIpBlocked) {
+        return res.status(403).json({ error: "عذراً، لقد تم حظر جهازك من قبل المطعم." });
+      }
+    }
+
     // Check if user is blocked
     if (customerPhone) {
       const isBlocked = db.prepare("SELECT 1 FROM blocked_users WHERE restaurant_id = ? AND phone = ?").get(restaurantId, customerPhone);
@@ -261,11 +282,11 @@ async function startServer() {
     }
 
     const orderId = uuidv4();
-    
+
     db.prepare(`
-      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber);
+      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip);
 
     for (const item of items) {
       db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);
@@ -364,6 +385,28 @@ async function startServer() {
 
   app.delete("/api/restaurants/:id/unblock/:phone", authenticate, (req, res) => {
     db.prepare("DELETE FROM blocked_users WHERE restaurant_id = ? AND phone = ?").run(req.params.id, req.params.phone);
+    res.json({ success: true });
+  });
+
+  // --- Blocked IPs ---
+  app.get("/api/restaurants/:id/blocked-ips", authenticate, (req, res) => {
+    const blocked = db.prepare("SELECT * FROM blocked_ips WHERE restaurant_id = ?").all(req.params.id);
+    res.json(blocked);
+  });
+
+  app.post("/api/restaurants/:id/block-ip", authenticate, (req, res) => {
+    const { ip } = req.body;
+    const id = uuidv4();
+    try {
+      db.prepare("INSERT INTO blocked_ips (id, restaurant_id, ip) VALUES (?, ?, ?)").run(id, req.params.id, ip);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(400).json({ error: "IP محظور بالفعل" });
+    }
+  });
+
+  app.delete("/api/restaurants/:id/unblock-ip/:ip", authenticate, (req, res) => {
+    db.prepare("DELETE FROM blocked_ips WHERE restaurant_id = ? AND ip = ?").run(req.params.id, req.params.ip);
     res.json({ success: true });
   });
 

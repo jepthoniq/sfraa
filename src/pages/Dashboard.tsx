@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { Restaurant } from "../types";
 import { cn } from "../lib/utils";
 import ErrorBoundary from "../components/ErrorBoundary";
+import LoadingScreen from "../components/LoadingScreen";
 import { 
   LayoutDashboard, 
   UtensilsCrossed, 
@@ -90,7 +91,7 @@ export default function Dashboard() {
     { name: "الإعدادات", icon: Settings, path: "/dashboard/settings" },
   ];
 
-  if (loading) return <div className="flex items-center justify-center h-screen">جاري التحميل...</div>;
+  if (loading) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans" dir="rtl">

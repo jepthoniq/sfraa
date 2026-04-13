@@ -5,6 +5,12 @@ import path from "path";
 const db = new Database("sufra.db");
 
 // Initialize tables
+try {
+  db.prepare("ALTER TABLE orders ADD COLUMN customer_ip TEXT").run();
+} catch (e) {
+  // Column probably already exists
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -70,6 +76,7 @@ db.exec(`
     customer_zone TEXT,
     google_maps_link TEXT,
     table_number TEXT,
+    customer_ip TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
   );
@@ -98,6 +105,15 @@ db.exec(`
     phone TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(restaurant_id, phone),
+    FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS blocked_ips (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    ip TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(restaurant_id, ip),
     FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
   );
 `);

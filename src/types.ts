@@ -48,6 +48,7 @@ export interface Order {
   customerZone?: string;
   googleMapsLink?: string;
   tableNumber?: string;
+  customerIp?: string;
   createdAt: any;
 }
 

@@ -18,6 +18,7 @@ import {
   ClipboardList,
   X
 } from "lucide-react";
+import LoadingScreen from "../components/LoadingScreen";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
@@ -139,7 +140,7 @@ export default function OrderTracking() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-screen">جاري تحميل حالة الطلب...</div>;
+  if (loading) return <LoadingScreen />;
   if (!order) return <div className="flex items-center justify-center h-screen">الطلب غير موجود</div>;
 
   const steps = [
