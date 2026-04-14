@@ -17,8 +17,8 @@ import {
 export default function LandingPage() {
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = React.useState(false);
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
+  const [email, setEmail] = React.useState("admin@zantex.com");
+  const [password, setPassword] = React.useState("password");
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -46,6 +46,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900" dir="rtl">
+      {/* Login Modal */}
       <AnimatePresence>
         {showLoginModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -124,6 +125,7 @@ export default function LandingPage() {
         )}
       </AnimatePresence>
 
+      {/* Navbar */}
       <nav className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">ز</div>
@@ -137,6 +139,7 @@ export default function LandingPage() {
         </button>
       </nav>
 
+      {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-6 pt-20 pb-32 grid lg:grid-cols-2 gap-16 items-center">
         <motion.div 
           initial={{ opacity: 0, x: 50 }}
@@ -189,6 +192,7 @@ export default function LandingPage() {
                   <div className="h-8 w-8 bg-gray-100 rounded-lg" />
                 </div>
               </div>
+              {/* Floating elements */}
               <div className="absolute top-1/4 -right-12 bg-white p-4 rounded-2xl shadow-xl flex items-center gap-3">
                 <div className="w-10 h-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center">
                   <Truck className="w-6 h-6" />
@@ -203,6 +207,7 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
+      {/* Features */}
       <section className="bg-gray-50 py-32">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-20">
@@ -228,6 +233,7 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Pricing/CTA */}
       <section className="py-32">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="bg-gray-900 rounded-[3rem] p-12 lg:p-20 text-white relative overflow-hidden">
@@ -241,12 +247,14 @@ export default function LandingPage() {
                 ابدأ الآن مجاناً
               </button>
             </div>
+            {/* Decorative circles */}
             <div className="absolute -top-24 -right-24 w-64 h-64 bg-red-600 rounded-full opacity-20 blur-3xl" />
             <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-600 rounded-full opacity-20 blur-3xl" />
           </div>
         </div>
       </section>
 
+      {/* Footer */}
       <footer className="border-t border-gray-100 py-12">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-2">

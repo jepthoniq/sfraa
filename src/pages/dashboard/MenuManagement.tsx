@@ -9,6 +9,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
   const [items, setItems] = useState<MenuItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   
+  // Forms
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(null);
   const [newCatName, setNewCatName] = useState("");
@@ -81,7 +82,6 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
       fetchData();
     } catch (error) {
       console.error(error);
-      alert("حدث خطأ أثناء حفظ القسم");
     }
   };
 
@@ -93,7 +93,6 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
       fetchData();
     } catch (error) {
       console.error(error);
-      alert("حدث خطأ أثناء حذف القسم");
     }
   };
 
@@ -122,7 +121,6 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
       fetchData();
     } catch (error) {
       console.error(error);
-      alert("حدث خطأ أثناء حفظ الوجبة");
     }
   };
 
@@ -190,6 +188,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
         </div>
       </div>
 
+      {/* Categories Tabs */}
       <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
         {categories.map(cat => (
           <div key={cat.id} className="relative group/cat">
@@ -206,7 +205,9 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
         ))}
       </div>
 
+      {/* Items List */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Add Item Card */}
         <button 
           onClick={() => setShowAddItem(true)}
           className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-red-300 hover:text-red-500 transition-all group"
@@ -282,6 +283,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
         ))}
       </div>
 
+      {/* Add Category Modal */}
       {showAddCategory && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
@@ -308,6 +310,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
         </div>
       )}
 
+      {/* Delete Item Confirmation */}
       {itemToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
@@ -324,6 +327,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
         </div>
       )}
 
+      {/* Delete Category Confirmation */}
       {categoryToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
@@ -340,6 +344,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
         </div>
       )}
 
+      {/* Add Item Modal */}
       {showAddItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">

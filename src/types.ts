@@ -12,8 +12,6 @@ export interface Restaurant {
   subscriptionStatus: "active" | "trial" | "expired";
   subscriptionStartedAt?: string;
   subscriptionExpiresAt?: string;
-  address?: string;
-  phone?: string;
 }
 
 export interface MenuCategory {

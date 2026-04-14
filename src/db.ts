@@ -4,13 +4,18 @@ import path from "path";
 
 const db = new Database("sufra.db");
 
+// Initialize tables
 try {
   db.prepare("ALTER TABLE orders ADD COLUMN customer_ip TEXT").run();
-} catch (e) {}
+} catch (e) {
+  // Column probably already exists
+}
 
 try {
   db.prepare("ALTER TABLE orders ADD COLUMN notes TEXT").run();
-} catch (e) {}
+} catch (e) {
+  // Column probably already exists
+}
 
 try {
   db.prepare("ALTER TABLE items ADD COLUMN discount_price REAL").run();
@@ -36,18 +41,6 @@ try {
   db.prepare("ALTER TABLE users ADD COLUMN dashboard_color TEXT DEFAULT '#dc2626'").run();
 } catch (e) {}
 
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN address TEXT").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN phone TEXT").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP").run();
-} catch (e) {}
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -55,8 +48,7 @@ db.exec(`
     password TEXT,
     name TEXT,
     is_super_admin INTEGER DEFAULT 0,
-    dashboard_color TEXT DEFAULT '#dc2626',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    dashboard_color TEXT DEFAULT '#dc2626'
   );
 
   CREATE TABLE IF NOT EXISTS restaurants (
@@ -73,8 +65,6 @@ db.exec(`
     subscription_status TEXT DEFAULT 'trial',
     subscription_started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     subscription_expires_at DATETIME,
-    address TEXT,
-    phone TEXT,
     FOREIGN KEY(owner_id) REFERENCES users(id)
   );
 
@@ -111,7 +101,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS orders (
     id TEXT PRIMARY KEY,
     restaurant_id TEXT,
-    type TEXT,
+    type TEXT, -- 'dine-in' or 'delivery'
     status TEXT DEFAULT 'pending',
     subtotal REAL,
     delivery_fee REAL,
@@ -140,7 +130,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     order_id TEXT,
-    sender TEXT,
+    sender TEXT, -- 'customer' or 'restaurant'
     text TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(order_id) REFERENCES orders(id)
