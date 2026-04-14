@@ -35,6 +35,8 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
     isDeliveryEnabled: restaurant?.isDeliveryEnabled ?? true,
     whatsappNumber: restaurant?.whatsappNumber || "",
     logo: restaurant?.logo || "",
+    address: restaurant?.address || "",
+    phone: restaurant?.phone || "",
     themeColor: restaurant?.themeColor || "#dc2626",
     dashboardColor: JSON.parse(localStorage.getItem("sufra_user") || "{}").dashboardColor || "#dc2626"
   });
@@ -167,6 +169,26 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
                   />
                 </label>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">عنوان المطعم</label>
+              <input 
+                type="text" 
+                placeholder="مثلاً: بغداد، الكرادة، شارع 62"
+                className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500"
+                value={formData.address}
+                onChange={(e) => setFormData({...formData, address: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">رقم هاتف المطعم</label>
+              <input 
+                type="text" 
+                placeholder="مثلاً: 07701234567"
+                className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500"
+                value={formData.phone}
+                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">رقم الواتساب (لإرسال الطلبات)</label>

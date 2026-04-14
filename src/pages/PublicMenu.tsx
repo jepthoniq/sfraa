@@ -47,6 +47,11 @@ export default function PublicMenu() {
   const [showMap, setShowMap] = useState(false);
   const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [alertModal, setAlertModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: "" });
+
+  const showAlert = (message: string, title: string = "تنبيه") => {
+    setAlertModal({ show: true, message, title });
+  };
 
   useEffect(() => {
     localStorage.setItem("zantex_cart", JSON.stringify(cart));
@@ -211,7 +216,7 @@ export default function PublicMenu() {
       },
       (err) => {
         console.error(err);
-        alert("فشل في تحديد الموقع. يرجى التأكد من تفعيل خدمات الموقع في جهازك.");
+        showAlert("فشل في تحديد الموقع. يرجى التأكد من تفعيل خدمات الموقع في جهازك.");
         setIsFetchingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -226,12 +231,12 @@ export default function PublicMenu() {
     if (!restaurant) return;
     if (orderType === "delivery") {
       if (!customerName || !customerPhone || !customerAddress || !selectedZone) {
-        alert("يرجى إكمال جميع معلومات التوصيل");
+        showAlert("يرجى إكمال جميع معلومات التوصيل");
         return;
       }
     } else {
       if (!tableNumber) {
-        alert("يرجى إدخال رقم الطاولة");
+        showAlert("يرجى إدخال رقم الطاولة");
         return;
       }
     }
@@ -278,9 +283,9 @@ export default function PublicMenu() {
     } catch (error: any) {
       console.error("Error creating order:", error);
       if (error.response?.data?.error) {
-        alert(error.response.data.error);
+        showAlert(error.response.data.error);
       } else {
-        alert("حدث خطأ أثناء إرسال الطلب");
+        showAlert("حدث خطأ أثناء إرسال الطلب");
       }
     }
   };
@@ -346,14 +351,18 @@ export default function PublicMenu() {
         .ring-theme:focus { --tw-ring-color: var(--theme-color) !important; }
         .bg-theme-light { background-color: var(--theme-color-light) !important; }
       `}</style>
+      
       {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-30">
-        <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {restaurant.logo && <img src={restaurant.logo} alt={restaurant.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />}
-            <h1 className="font-bold text-lg text-gray-900">{restaurant.name}</h1>
+            {restaurant.logo && <img src={restaurant.logo} alt={restaurant.name} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover shadow-sm" referrerPolicy="no-referrer" />}
+            <div>
+              <h1 className="font-bold text-lg md:text-xl text-gray-900 leading-none">{restaurant.name}</h1>
+              {restaurant.address && <p className="text-[10px] md:text-xs text-gray-500 mt-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> {restaurant.address}</p>}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 md:gap-4">
             {(activeOrders.length > 0 || localStorage.getItem("sufra_active_orders") !== "[]") && (
               <>
                 <button 
@@ -364,7 +373,7 @@ export default function PublicMenu() {
                       setIsActiveOrdersOpen(true);
                     }
                   }}
-                  className="relative p-2 text-theme bg-theme-light rounded-full"
+                  className="relative p-2 text-theme bg-theme-light rounded-full hover:scale-105 transition-transform"
                 >
                   <MessageSquare className="w-6 h-6" />
                   {totalUnread > 0 && (
@@ -375,7 +384,7 @@ export default function PublicMenu() {
                 </button>
                 <button 
                   onClick={() => setIsActiveOrdersOpen(true)}
-                  className="relative p-2 text-theme bg-theme-light rounded-full"
+                  className="relative p-2 text-theme bg-theme-light rounded-full hover:scale-105 transition-transform"
                 >
                   <ClipboardList className="w-6 h-6" />
                   <span className="absolute -top-1 -right-1 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
@@ -384,7 +393,7 @@ export default function PublicMenu() {
                 </button>
               </>
             )}
-            <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-gray-600 hover:text-theme transition-colors">
+            <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-gray-600 hover:text-theme transition-colors hover:scale-105 transition-transform">
               <ShoppingBag className="w-6 h-6" />
               {cart.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-theme text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
@@ -395,128 +404,161 @@ export default function PublicMenu() {
           </div>
         </div>
 
-        {/* Order Type Toggle */}
-        <div className="max-w-md mx-auto px-4 pb-4">
-          <div className="bg-gray-100 p-1 rounded-xl flex">
-            <button 
-              onClick={() => setOrderType("dine-in")}
-              className={cn(
-                "flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
-                orderType === "dine-in" ? "bg-white shadow-sm text-theme" : "text-gray-500"
-              )}
-            >
-              <Utensils className="w-4 h-4" />
-              داخل المطعم
-            </button>
-            <button 
-              onClick={() => setOrderType("delivery")}
-              className={cn(
-                "flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
-                orderType === "delivery" ? "bg-white shadow-sm text-theme" : "text-gray-500"
-              )}
-            >
-              <MapPin className="w-4 h-4" />
-              توصيل
-            </button>
+        {/* Order Type Toggle & Search (Desktop Layout) */}
+        <div className="max-w-5xl mx-auto px-4 pb-4">
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="bg-gray-100 p-1 rounded-xl flex w-full md:w-auto md:min-w-[300px]">
+              <button 
+                onClick={() => setOrderType("dine-in")}
+                className={cn(
+                  "flex-1 py-2 px-6 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+                  orderType === "dine-in" ? "bg-white shadow-sm text-theme" : "text-gray-500"
+                )}
+              >
+                <Utensils className="w-4 h-4" />
+                داخل المطعم
+              </button>
+              <button 
+                onClick={() => setOrderType("delivery")}
+                className={cn(
+                  "flex-1 py-2 px-6 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+                  orderType === "delivery" ? "bg-white shadow-sm text-theme" : "text-gray-500"
+                )}
+              >
+                <MapPin className="w-4 h-4" />
+                توصيل
+              </button>
+            </div>
+            
+            <div className="relative flex-1 w-full">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input 
+                type="text" 
+                placeholder="ابحث عن وجبة..." 
+                className="w-full bg-gray-50 border-none rounded-xl py-3 pr-10 pl-4 shadow-sm focus:ring-2 focus:ring-theme ring-theme transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="max-w-md mx-auto px-4 mt-4">
-        <div className="relative">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input 
-            type="text" 
-            placeholder="ابحث عن وجبة..." 
-            className="w-full bg-white border-none rounded-xl py-3 pr-10 pl-4 shadow-sm focus:ring-2 focus:ring-theme ring-theme"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Categories */}
-      <div className="max-w-md mx-auto px-4 mt-6 overflow-x-auto no-scrollbar flex gap-3 pb-2">
-        <button
-          onClick={() => setActiveCategory("all")}
-          className={cn(
-            "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all",
-            activeCategory === "all" ? "bg-theme text-white" : "bg-white text-gray-600 border border-gray-100"
-          )}
-        >
-          الكل
-        </button>
-        {categories.map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            className={cn(
-              "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all",
-              activeCategory === cat.id ? "bg-theme text-white" : "bg-white text-gray-600 border border-gray-100"
-            )}
-          >
-            {cat.name}
-          </button>
-        ))}
-      </div>
-
-      {/* Items Grid */}
-      <div className="max-w-md mx-auto px-4 mt-6 grid grid-cols-2 gap-4">
-        {filteredItems.map(item => (
-          <motion.div 
-            layout
-            key={item.id} 
-            className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition-all group flex flex-col"
-          >
-            <div className="relative h-32 w-full overflow-hidden">
-              {item.image ? (
-                <img 
-                  src={item.image} 
-                  alt={item.name} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-50 flex items-center justify-center text-gray-300">
-                  <Utensils className="w-8 h-8" />
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-              <div className="absolute bottom-2 right-2">
-                <div className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-lg shadow-sm">
-                  {item.discountPrice ? (
-                    <div className="flex flex-col items-end">
-                      <span className="text-[8px] text-gray-400 line-through leading-none">{formatCurrency(item.price)}</span>
-                      <span className="font-black text-xs text-green-600 leading-none">{formatCurrency(item.discountPrice)}</span>
-                    </div>
-                  ) : (
-                    <span className="font-black text-xs text-gray-900">{formatCurrency(item.price)}</span>
-                  )}
-                </div>
-              </div>
-              {!item.isAvailable && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <span className="text-white text-[8px] font-bold uppercase tracking-widest bg-theme px-2 py-0.5 rounded-full">نفذت</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="p-3 flex-1 flex flex-col">
-              <h3 className="font-bold text-sm text-gray-900 line-clamp-1 mb-1 group-hover:text-theme transition-colors">{item.name}</h3>
-              <p className="text-[10px] text-gray-400 leading-tight mb-3 line-clamp-2 flex-1">{item.description}</p>
-              
-              <button 
-                onClick={() => addToCart(item)}
-                disabled={!item.isAvailable}
-                className="w-full bg-gray-900 text-white py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-theme active:scale-95 transition-all disabled:opacity-50"
+      <div className="max-w-5xl mx-auto px-4 mt-8">
+        <div className="flex flex-col md:flex-row gap-8">
+          {/* Categories Sidebar (Desktop) */}
+          <aside className="hidden md:block w-64 shrink-0 sticky top-40 h-fit">
+            <h3 className="font-bold text-gray-900 mb-4 px-2">الأقسام</h3>
+            <div className="space-y-1">
+              <button
+                onClick={() => setActiveCategory("all")}
+                className={cn(
+                  "w-full text-right px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                  activeCategory === "all" ? "bg-theme text-white shadow-lg shadow-theme/20" : "text-gray-600 hover:bg-white"
+                )}
               >
-                <Plus className="w-3 h-3" />
-                إضافة
+                الكل
               </button>
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={cn(
+                    "w-full text-right px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                    activeCategory === cat.id ? "bg-theme text-white shadow-lg shadow-theme/20" : "text-gray-600 hover:bg-white"
+                  )}
+                >
+                  {cat.name}
+                </button>
+              ))}
             </div>
-          </motion.div>
-        ))}
+          </aside>
+
+          {/* Categories Mobile Scroll */}
+          <div className="md:hidden overflow-x-auto no-scrollbar flex gap-3 pb-2">
+            <button
+              onClick={() => setActiveCategory("all")}
+              className={cn(
+                "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all",
+                activeCategory === "all" ? "bg-theme text-white" : "bg-white text-gray-600 border border-gray-100"
+              )}
+            >
+              الكل
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={cn(
+                  "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all",
+                  activeCategory === cat.id ? "bg-theme text-white" : "bg-white text-gray-600 border border-gray-100"
+                )}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Items Grid */}
+          <div className="flex-1">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              {filteredItems.map(item => (
+                <motion.div 
+                  layout
+                  key={item.id} 
+                  className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col"
+                >
+                  <div className="relative h-32 md:h-48 w-full overflow-hidden">
+                    {item.image ? (
+                      <img 
+                        src={item.image} 
+                        alt={item.name} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-50 flex items-center justify-center text-gray-300">
+                        <Utensils className="w-12 h-12" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                    <div className="absolute bottom-3 right-3">
+                      <div className="bg-white/95 backdrop-blur-sm px-3 py-1 rounded-xl shadow-lg">
+                        {item.discountPrice ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] text-gray-400 line-through leading-none">{formatCurrency(item.price)}</span>
+                            <span className="font-black text-sm text-green-600 leading-none">{formatCurrency(item.discountPrice)}</span>
+                          </div>
+                        ) : (
+                          <span className="font-black text-sm text-gray-900">{formatCurrency(item.price)}</span>
+                        )}
+                      </div>
+                    </div>
+                    {!item.isAvailable && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold uppercase tracking-widest bg-theme px-3 py-1 rounded-full">نفذت</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="font-bold text-sm md:text-base text-gray-900 line-clamp-1 mb-1 group-hover:text-theme transition-colors">{item.name}</h3>
+                    <p className="text-[10px] md:text-xs text-gray-400 leading-relaxed mb-4 line-clamp-2 flex-1">{item.description}</p>
+                    
+                    <button 
+                      onClick={() => addToCart(item)}
+                      disabled={!item.isAvailable}
+                      className="w-full bg-gray-900 text-white py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-theme active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-gray-200 hover:shadow-theme/30"
+                    >
+                      <Plus className="w-4 h-4" />
+                      إضافة للسلة
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Active Orders Modal */}
@@ -526,17 +568,17 @@ export default function PublicMenu() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end justify-center"
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center md:items-center justify-center p-4"
           >
             <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              className="bg-white w-full max-w-md rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-8 max-h-[90vh] overflow-y-auto shadow-2xl"
             >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">طلباتي النشطة</h2>
-                <button onClick={() => setIsActiveOrdersOpen(false)} className="p-2 bg-gray-100 rounded-full">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-bold text-gray-900">طلباتي النشطة</h2>
+                <button onClick={() => setIsActiveOrdersOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
@@ -551,20 +593,20 @@ export default function PublicMenu() {
                     <div 
                       key={order.id}
                       onClick={() => navigate(`/order/${order.id}`)}
-                      className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-all"
+                      className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between cursor-pointer hover:bg-white hover:shadow-xl hover:shadow-gray-100 border border-transparent hover:border-gray-100 transition-all group"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-red-600 shadow-sm relative">
-                          <ClipboardList className="w-6 h-6" />
+                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-theme shadow-sm relative group-hover:scale-110 transition-transform">
+                          <ClipboardList className="w-7 h-7" />
                           {unreadMessages[order.id] > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
                               {unreadMessages[order.id]}
                             </span>
                           )}
                         </div>
                         <div>
                           <h4 className="font-bold text-gray-900">طلب #{order.id.slice(-6)}</h4>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-gray-500 mt-1">
                             {order.status === 'pending' && 'قيد الانتظار'}
                             {order.status === 'preparing' && 'قيد التحضير'}
                             {order.status === 'out-for-delivery' && 'خارج للتوصيل'}
@@ -574,8 +616,8 @@ export default function PublicMenu() {
                         </div>
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-red-600">{formatCurrency(order.total)}</p>
-                        <ChevronRight className="w-5 h-5 text-gray-300 inline-block" />
+                        <p className="font-black text-theme">{formatCurrency(order.total)}</p>
+                        <ChevronRight className="w-5 h-5 text-gray-300 inline-block mt-1 group-hover:translate-x-[-4px] transition-transform" />
                       </div>
                     </div>
                   ))
@@ -593,138 +635,147 @@ export default function PublicMenu() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end justify-center"
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
           >
             <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              className="bg-white w-full max-w-md rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 max-h-[90vh] overflow-y-auto shadow-2xl"
             >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">سلة المشتريات</h2>
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-bold text-gray-900">سلة المشتريات</h2>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => {
                       if (confirm("هل تريد إفراغ السلة؟")) setCart([]);
                     }} 
-                    className="p-2 bg-red-50 rounded-full text-red-600"
+                    className="p-3 bg-red-50 rounded-2xl text-red-600 hover:bg-red-100 transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
-                  <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full">
+                  <button onClick={() => setIsCartOpen(false)} className="p-3 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors">
                     <X className="w-5 h-5 text-gray-500" />
                   </button>
                 </div>
               </div>
 
               {cart.length === 0 ? (
-                <div className="py-12 text-center text-gray-500">السلة فارغة</div>
+                <div className="py-20 text-center">
+                  <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ShoppingBag className="w-10 h-10 text-gray-300" />
+                  </div>
+                  <p className="text-gray-500 font-medium">السلة فارغة حالياً</p>
+                </div>
               ) : (
                 <>
                   <div className="space-y-4 mb-8">
                     {cart.map(item => (
-                      <div key={item.id} className="flex items-center justify-between">
+                      <div key={item.id} className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl">
                         <div>
-                          <h4 className="font-medium text-gray-900">{item.name}</h4>
-                          <p className="text-sm text-gray-500">{formatCurrency(item.price)}</p>
+                          <h4 className="font-bold text-gray-900">{item.name}</h4>
+                          <p className="text-xs text-gray-500 mt-1">{formatCurrency(item.price)}</p>
                         </div>
-                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg">
-                          <button onClick={() => removeFromCart(item.id)} className="p-1 text-gray-500"><Minus className="w-4 h-4" /></button>
-                          <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
-                          <button onClick={() => addToCart(items.find(i => i.id === item.id)!)} className="p-1 text-red-600"><Plus className="w-4 h-4" /></button>
+                        <div className="flex items-center gap-4 bg-white p-1.5 rounded-xl shadow-sm">
+                          <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"><Minus className="w-4 h-4" /></button>
+                          <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
+                          <button onClick={() => addToCart(items.find(i => i.id === item.id)!)} className="p-1.5 text-theme hover:scale-110 transition-transform"><Plus className="w-4 h-4" /></button>
                         </div>
                       </div>
                     ))}
                   </div>
 
                   {/* Order Details Form */}
-                  <div className="space-y-4 border-t pt-6">
+                  <div className="space-y-5 border-t border-gray-100 pt-8">
                     {orderType === "delivery" ? (
-                      <>
-                        <input 
-                          type="text" 
-                          placeholder="الاسم الكامل" 
-                          className="w-full bg-gray-50 border-none rounded-xl py-3 px-4"
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                        />
-                        <input 
-                          type="tel" 
-                          placeholder="رقم الهاتف" 
-                          className="w-full bg-gray-50 border-none rounded-xl py-3 px-4"
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
-                        />
-                        <select 
-                          className="w-full bg-gray-50 border-none rounded-xl py-3 px-4"
-                          value={selectedZone?.id || ""}
-                          onChange={(e) => setSelectedZone(zones.find(z => z.id === e.target.value) || null)}
-                        >
-                          <option value="">اختر منطقة التوصيل</option>
-                          {zones.map(zone => (
-                            <option key={zone.id} value={zone.id}>{zone.name} (+{formatCurrency(zone.fee)})</option>
-                          ))}
-                        </select>
-                        <textarea 
-                          placeholder="العنوان بالتفصيل (الشارع، رقم الدار، علامة مميزة)" 
-                          className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 h-20"
-                          value={customerAddress}
-                          onChange={(e) => setCustomerAddress(e.target.value)}
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-bold text-gray-400 mb-2 mr-1">الاسم الكامل</label>
+                          <input 
+                            type="text" 
+                            placeholder="مثلاً: محمد علي" 
+                            className="w-full bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl py-4 px-6 outline-none transition-all font-medium"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 mb-2 mr-1">رقم الهاتف</label>
+                          <input 
+                            type="tel" 
+                            placeholder="07XXXXXXXXX" 
+                            className="w-full bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl py-4 px-6 outline-none transition-all font-medium"
+                            value={customerPhone}
+                            onChange={(e) => setCustomerPhone(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 mb-2 mr-1">منطقة التوصيل</label>
+                          <select 
+                            className="w-full bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl py-4 px-6 outline-none transition-all font-medium appearance-none"
+                            value={selectedZone?.id || ""}
+                            onChange={(e) => setSelectedZone(zones.find(z => z.id === e.target.value) || null)}
+                          >
+                            <option value="">اختر المنطقة</option>
+                            {zones.map(zone => (
+                              <option key={zone.id} value={zone.id}>{zone.name} (+{formatCurrency(zone.fee)})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-bold text-gray-400 mb-2 mr-1">العنوان بالتفصيل</label>
+                          <textarea 
+                            placeholder="الشارع، رقم الدار، علامة مميزة..." 
+                            className="w-full bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl py-4 px-6 outline-none transition-all font-medium h-24 resize-none"
+                            value={customerAddress}
+                            onChange={(e) => setCustomerAddress(e.target.value)}
+                          />
+                        </div>
                         
-                        <div className="space-y-3">
+                        <div className="sm:col-span-2">
                           <button
                             type="button"
                             onClick={handleGetLocation}
                             disabled={isFetchingLocation}
                             className={cn(
-                              "w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm",
+                              "w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg",
                               coords 
-                                ? "bg-green-50 text-green-600 border border-green-200" 
-                                : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100",
+                                ? "bg-green-50 text-green-600 border-2 border-green-200 shadow-green-100" 
+                                : "bg-blue-50 text-blue-600 border-2 border-blue-200 shadow-blue-100 hover:bg-blue-100",
                               isFetchingLocation && "opacity-70 cursor-not-allowed"
                             )}
                           >
                             {isFetchingLocation ? (
                               <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                             ) : (
-                              <MapPin className="w-5 h-5" />
+                              <MapIcon className="w-5 h-5" />
                             )}
                             {isFetchingLocation 
                               ? "جاري تحديد الموقع..." 
                               : coords 
-                                ? "تم تحديد الموقع بنجاح (اضغط للتحديث)" 
-                                : "جلب موقعي الحالي"}
+                                ? "تم تحديد موقعك بنجاح" 
+                                : "تحديد موقعي التلقائي"}
                           </button>
                         </div>
-
-                        {coords && (
-                          <input 
-                            type="text" 
-                            placeholder="رابط الموقع" 
-                            className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 text-xs text-gray-500"
-                            value={googleMapsLink}
-                            readOnly
-                          />
-                        )}
-                      </>
+                      </div>
                     ) : (
-                      <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 mb-2 mr-1">رقم الطاولة</label>
                         <input 
                           type="text" 
-                          placeholder="رقم الطاولة" 
-                          className="w-full bg-gray-50 border-none rounded-xl py-3 px-4"
+                          placeholder="أدخل رقم الطاولة" 
+                          className="w-full bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl py-4 px-6 outline-none transition-all font-medium"
                           value={tableNumber}
                           onChange={(e) => setTableNumber(e.target.value)}
                         />
                       </div>
                     )}
 
-                    <div className="mt-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 mb-2 mr-1">ملاحظات إضافية</label>
                       <textarea 
-                        placeholder="ملاحظات إضافية (مثلاً: بدون خضروات، بدون طماطم...)" 
-                        className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 h-24 text-sm"
+                        placeholder="أي تفاصيل أخرى تود إضافتها للطلب..." 
+                        className="w-full bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl py-4 px-6 outline-none transition-all font-medium h-24 resize-none"
                         value={orderNotes}
                         onChange={(e) => setOrderNotes(e.target.value)}
                       />
@@ -732,42 +783,73 @@ export default function PublicMenu() {
                   </div>
 
                   {/* Summary */}
-                  <div className="mt-8 space-y-2 border-t pt-4">
-                    <div className="flex justify-between text-gray-600">
+                  <div className="mt-8 space-y-3 bg-gray-50 p-6 rounded-3xl">
+                    <div className="flex justify-between text-sm text-gray-500">
                       <span>المجموع الفرعي</span>
-                      <span>{formatCurrency(subtotal)}</span>
+                      <span className="font-bold">{formatCurrency(subtotal)}</span>
                     </div>
                     {orderType === "delivery" && (
-                      <div className="flex justify-between text-gray-600">
+                      <div className="flex justify-between text-sm text-gray-500">
                         <span>أجور التوصيل</span>
-                        <span>{formatCurrency(deliveryFee)}</span>
+                        <span className="font-bold">{formatCurrency(deliveryFee)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-xl font-bold text-gray-900 pt-2">
+                    <div className="flex justify-between text-xl font-black text-gray-900 pt-3 border-t border-gray-200">
                       <span>الإجمالي</span>
-                      <span>{formatCurrency(total)}</span>
+                      <span className="text-theme">{formatCurrency(total)}</span>
                     </div>
                   </div>
 
-                  <div className="flex gap-3 mt-8">
+                  <div className="flex flex-col sm:flex-row gap-4 mt-8">
                     <button 
                       onClick={() => handleCheckout(false)}
-                      className="flex-1 bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
+                      className="flex-1 bg-gray-900 text-white font-bold py-5 rounded-2xl hover:bg-theme transition-all shadow-xl shadow-gray-200 hover:shadow-theme/30"
                     >
                       تأكيد الطلب
                     </button>
                     {restaurant.whatsappNumber && (
                       <button 
                         onClick={() => handleCheckout(true)}
-                        className="flex-1 bg-green-600 text-white font-bold py-4 rounded-2xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200 flex items-center justify-center gap-2"
+                        className="flex-1 bg-green-600 text-white font-bold py-5 rounded-2xl hover:bg-green-700 transition-all shadow-xl shadow-green-200 flex items-center justify-center gap-3"
                       >
-                        <MessageCircle className="w-5 h-5" />
-                        واتساب
+                        <MessageCircle className="w-6 h-6" />
+                        طلب عبر واتساب
                       </button>
                     )}
                   </div>
                 </>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Alert Modal */}
+      <AnimatePresence>
+        {alertModal.show && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-sm rounded-[2rem] p-8 text-center shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-red-50 text-theme rounded-full flex items-center justify-center mx-auto mb-6">
+                <Ban className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">{alertModal.title}</h3>
+              <p className="text-gray-500 mb-8 leading-relaxed">{alertModal.message}</p>
+              <button 
+                onClick={() => setAlertModal({ ...alertModal, show: false })}
+                className="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-theme transition-all shadow-lg"
+              >
+                موافق
+              </button>
             </motion.div>
           </motion.div>
         )}
@@ -780,16 +862,16 @@ export default function PublicMenu() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-end justify-center"
+            className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4"
           >
             <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
               onViewportEnter={() => {
                 localStorage.setItem(`sufra_last_read_${selectedChatOrderId}`, Date.now().toString());
               }}
-              className="bg-white w-full max-w-md rounded-t-3xl h-[80vh] overflow-hidden flex flex-col"
+              className="bg-white w-full max-w-lg rounded-[2.5rem] h-[80vh] overflow-hidden flex flex-col shadow-2xl"
             >
               <Chat 
                 orderId={selectedChatOrderId} 
@@ -803,31 +885,68 @@ export default function PublicMenu() {
         )}
       </AnimatePresence>
 
-      {/* Bottom Bar */}
+      {/* Bottom Bar (Mobile Only) */}
       {cart.length > 0 && !isCartOpen && (
-        <div className="fixed bottom-6 left-4 right-4 max-w-md mx-auto z-40">
+        <div className="md:hidden fixed bottom-6 left-4 right-4 z-40">
           <button 
             onClick={() => setIsCartOpen(true)}
-            className="w-full bg-red-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-xl shadow-red-200"
+            className="w-full bg-theme text-white p-5 rounded-2xl flex items-center justify-between shadow-2xl shadow-theme/30 animate-bounce-subtle"
           >
             <div className="flex items-center gap-3">
-              <div className="bg-white text-red-600 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm">
+              <div className="bg-white text-theme w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm">
                 {cart.reduce((a, b) => a + b.quantity, 0)}
               </div>
               <span className="font-bold">عرض السلة</span>
             </div>
-            <span className="font-bold">{formatCurrency(total)}</span>
+            <span className="font-black">{formatCurrency(total)}</span>
           </button>
         </div>
       )}
+
       {/* Footer */}
-      <footer className="max-w-md mx-auto px-4 py-12 text-center border-t border-gray-100 mt-12">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold">ز</div>
-          <span className="text-xl font-bold text-gray-900">زانتكس للمطاعم</span>
+      <footer className="max-w-5xl mx-auto px-4 py-16 text-center border-t border-gray-100 mt-20">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start text-right mb-12">
+          <div className="flex flex-col items-center md:items-start">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-theme rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-theme/20">ز</div>
+              <span className="text-2xl font-black text-gray-900">زانتكس</span>
+            </div>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs text-center md:text-right">
+              نظام زانتكس المتطور لإدارة المطاعم والطلبات الذكية في العراق.
+            </p>
+          </div>
+          
+          <div className="flex flex-col items-center md:items-start">
+            <h4 className="font-bold text-gray-900 mb-4">معلومات المطعم</h4>
+            <div className="space-y-3 text-sm text-gray-500">
+              <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-theme" /> {restaurant.address || "العنوان غير متوفر"}</p>
+              <p className="flex items-center gap-2"><Phone className="w-4 h-4 text-theme" /> {restaurant.whatsappNumber || "رقم الهاتف غير متوفر"}</p>
+              <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-theme" /> متوفر الآن للطلبات</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center md:items-start">
+            <h4 className="font-bold text-gray-900 mb-4">تواصل معنا</h4>
+            <div className="flex gap-4">
+              {restaurant.whatsappNumber && (
+                <a href={`https://wa.me/${restaurant.whatsappNumber}`} className="w-10 h-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center hover:bg-green-600 hover:text-white transition-all">
+                  <MessageCircle className="w-5 h-5" />
+                </a>
+              )}
+              <a href="#" className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all">
+                <Phone className="w-5 h-5" />
+              </a>
+            </div>
+          </div>
         </div>
-        <p className="text-gray-400 text-xs mb-1">© 2024 زانتكس للمطاعم. جميع الحقوق محفوظة.</p>
-        <p className="text-red-600 text-[10px] font-bold">حقوق الملكية: حسين علي الجبوري</p>
+
+        <div className="pt-8 border-t border-gray-50 flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="text-gray-400 text-xs">© 2024 زانتكس للمطاعم. جميع الحقوق محفوظة.</p>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-[10px]">تطوير وبرمجة:</span>
+            <span className="text-theme text-xs font-black">حسين علي الجبوري</span>
+          </div>
+        </div>
       </footer>
     </div>
   );

@@ -41,6 +41,14 @@ try {
   db.prepare("ALTER TABLE users ADD COLUMN dashboard_color TEXT DEFAULT '#dc2626'").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE restaurants ADD COLUMN address TEXT").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE restaurants ADD COLUMN phone TEXT").run();
+} catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -57,6 +65,8 @@ db.exec(`
     name TEXT,
     slug TEXT UNIQUE,
     logo TEXT,
+    address TEXT,
+    phone TEXT,
     currency TEXT DEFAULT 'IQD',
     min_order REAL DEFAULT 0,
     is_delivery_enabled INTEGER DEFAULT 1,

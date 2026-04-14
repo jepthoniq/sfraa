@@ -4,6 +4,8 @@ export interface Restaurant {
   ownerId: string;
   slug: string;
   logo?: string;
+  address?: string;
+  phone?: string;
   currency: "IQD";
   minOrder: number;
   isDeliveryEnabled: boolean;
