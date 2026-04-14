@@ -40,6 +40,7 @@ export default function Zones({ restaurantId }: { restaurantId?: string }) {
       fetchZones();
     } catch (error) {
       console.error("Error adding zone:", error);
+      alert("حدث خطأ أثناء إضافة المنطقة");
     }
   };
 
@@ -50,8 +51,11 @@ export default function Zones({ restaurantId }: { restaurantId?: string }) {
       fetchZones();
     } catch (error) {
       console.error("Error deleting zone:", error);
+      alert("حدث خطأ أثناء حذف المنطقة");
     }
   };
+
+  if (loading) return <div className="text-center py-12">جاري التحميل...</div>;
 
   return (
     <div className="space-y-8">
@@ -61,7 +65,6 @@ export default function Zones({ restaurantId }: { restaurantId?: string }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Add Zone Form */}
         <div className="lg:col-span-1">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
             <h3 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
@@ -101,7 +104,6 @@ export default function Zones({ restaurantId }: { restaurantId?: string }) {
           </div>
         </div>
 
-        {/* Zones List */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
