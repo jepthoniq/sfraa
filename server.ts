@@ -107,7 +107,9 @@ async function startServer() {
         themeColor: newRest.theme_color,
         subscriptionStatus: newRest.subscription_status,
         subscriptionStartedAt: newRest.subscription_started_at,
-        subscriptionExpiresAt: newRest.subscription_expires_at
+        subscriptionExpiresAt: newRest.subscription_expires_at,
+        address: newRest.address,
+        phone: newRest.phone
       });
     }
     res.json({
@@ -119,7 +121,9 @@ async function startServer() {
       themeColor: restaurant.theme_color,
       subscriptionStatus: restaurant.subscription_status,
       subscriptionStartedAt: restaurant.subscription_started_at,
-      subscriptionExpiresAt: restaurant.subscription_expires_at
+      subscriptionExpiresAt: restaurant.subscription_expires_at,
+      address: restaurant.address,
+      phone: restaurant.phone
     });
   });
 
@@ -142,17 +146,19 @@ async function startServer() {
       subscriptionStatus: restaurant.subscription_status,
       subscriptionStartedAt: restaurant.subscription_started_at,
       subscriptionExpiresAt: restaurant.subscription_expires_at,
-      isIpBlocked
+      isIpBlocked,
+      address: restaurant.address,
+      phone: restaurant.phone
     });
   });
 
   app.put("/api/restaurants/me", authenticate, (req: any, res) => {
-    const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber, themeColor, dashboardColor } = req.body;
+    const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber, themeColor, dashboardColor, address, phone } = req.body;
     db.prepare(`
       UPDATE restaurants 
-      SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, theme_color = ?
+      SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, theme_color = ?, address = ?, phone = ?
       WHERE owner_id = ?
-    `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, themeColor, req.user.id);
+    `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, themeColor, address, phone, req.user.id);
     if (dashboardColor) {
       db.prepare("UPDATE users SET dashboard_color = ? WHERE id = ?").run(dashboardColor, req.user.id);
     }
@@ -365,7 +371,9 @@ async function startServer() {
       themeColor: restaurant.theme_color,
       subscriptionStatus: restaurant.subscription_status,
       subscriptionStartedAt: restaurant.subscription_started_at,
-      subscriptionExpiresAt: restaurant.subscription_expires_at
+      subscriptionExpiresAt: restaurant.subscription_expires_at,
+      address: restaurant.address,
+      phone: restaurant.phone
     });
   });
 
