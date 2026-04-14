@@ -18,26 +18,21 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // Request logging
   app.use((req, res, next) => {
     console.log(`${req.method} ${req.url}`);
     next();
   });
 
-  // Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
-  // --- Auth Middleware ---
   const authenticate = (req: any, res: any, next: any) => {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "Unauthorized" });
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       req.user = decoded;
-      
-      // Check subscription for non-super-admins
       if (!decoded.isSuperAdmin) {
         const restaurant = db.prepare("SELECT * FROM restaurants WHERE owner_id = ?").get(decoded.id) as any;
         if (restaurant && restaurant.subscription_expires_at) {
@@ -47,7 +42,6 @@ async function startServer() {
           }
         }
       }
-      
       next();
     } catch (e) {
       res.status(401).json({ error: "Invalid token" });
@@ -67,12 +61,9 @@ async function startServer() {
     }
   };
 
-  // --- Auth Routes ---
   app.post("/api/auth/login", (req, res) => {
     try {
       const { email, password } = req.body;
-      
-      // Bootstrap first super admin if none exists
       const superAdminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE is_super_admin = 1").get() as any;
       if (superAdminCount.count === 0 && email === "admin@zantex.com") {
         const id = uuidv4();
@@ -81,7 +72,6 @@ async function startServer() {
       }
 
       let user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
-      
       if (!user) {
         const id = uuidv4();
         const hashedPassword = bcrypt.hashSync(password || "password", 10);
@@ -101,11 +91,9 @@ async function startServer() {
     }
   });
 
-  // --- Restaurant Routes ---
   app.get("/api/restaurants/me", authenticate, (req: any, res) => {
     const restaurant = db.prepare("SELECT * FROM restaurants WHERE owner_id = ?").get(req.user.id) as any;
     if (!restaurant) {
-      // Create default restaurant for new user
       const id = uuidv4();
       const slug = `rest-${req.user.id.slice(0, 5)}`;
       db.prepare("INSERT INTO restaurants (id, owner_id, name, slug) VALUES (?, ?, ?, ?)").run(id, req.user.id, `${req.user.name}'s Restaurant`, slug);
@@ -138,14 +126,12 @@ async function startServer() {
   app.get("/api/restaurants/public/:slug", (req, res) => {
     const restaurant = db.prepare("SELECT * FROM restaurants WHERE slug = ?").get(req.params.slug) as any;
     if (!restaurant) return res.status(404).json({ error: "Not found" });
-    
     const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
     let isIpBlocked = false;
     if (ip) {
       const blocked = db.prepare("SELECT 1 FROM blocked_ips WHERE restaurant_id = ? AND ip = ?").get(restaurant.id, ip);
       if (blocked) isIpBlocked = true;
     }
-
     res.json({
       ...restaurant,
       ownerId: restaurant.owner_id,
@@ -161,22 +147,21 @@ async function startServer() {
   });
 
   app.put("/api/restaurants/me", authenticate, (req: any, res) => {
-    const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber } = req.body;
+    const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber, themeColor, dashboardColor } = req.body;
     db.prepare(`
       UPDATE restaurants 
-      SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?
+      SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, theme_color = ?
       WHERE owner_id = ?
-    `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, req.user.id);
+    `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, themeColor, req.user.id);
+    if (dashboardColor) {
+      db.prepare("UPDATE users SET dashboard_color = ? WHERE id = ?").run(dashboardColor, req.user.id);
+    }
     res.json({ success: true });
   });
 
-  // --- Categories ---
   app.get("/api/restaurants/:id/categories", (req, res) => {
     const categories = db.prepare("SELECT * FROM categories WHERE restaurant_id = ? ORDER BY sort_order ASC").all(req.params.id);
-    res.json(categories.map((c: any) => ({
-      ...c,
-      order: c.sort_order
-    })));
+    res.json(categories.map((c: any) => ({ ...c, order: c.sort_order })));
   });
 
   app.post("/api/restaurants/:id/categories", authenticate, (req, res) => {
@@ -194,13 +179,11 @@ async function startServer() {
   });
 
   app.delete("/api/categories/:id", authenticate, (req, res) => {
-    // Also delete items in this category or set their category to null
     db.prepare("DELETE FROM items WHERE category_id = ?").run(req.params.id);
     db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
     res.json({ success: true });
   });
 
-  // --- Items ---
   app.get("/api/restaurants/:id/items", (req, res) => {
     const items = db.prepare("SELECT * FROM items WHERE restaurant_id = ?").all(req.params.id);
     res.json(items.map((i: any) => ({ 
@@ -235,7 +218,6 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // --- Zones ---
   app.get("/api/restaurants/:id/zones", (req, res) => {
     const zones = db.prepare("SELECT * FROM zones WHERE restaurant_id = ?").all(req.params.id);
     res.json(zones);
@@ -253,7 +235,6 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // --- Orders ---
   app.get("/api/restaurants/:id/orders", authenticate, (req, res) => {
     const orders = db.prepare("SELECT * FROM orders WHERE restaurant_id = ? ORDER BY created_at DESC").all(req.params.id);
     const ordersWithItems = orders.map((o: any) => {
@@ -296,7 +277,6 @@ async function startServer() {
     });
   });
 
-  // --- Super Admin Routes ---
   app.get("/api/admin/restaurants", authenticateSuperAdmin, (req, res) => {
     const restaurants = db.prepare(`
       SELECT r.*, u.email as owner_email 
@@ -312,30 +292,65 @@ async function startServer() {
   });
 
   app.post("/api/admin/restaurants/:id/subscription", authenticateSuperAdmin, (req, res) => {
-    const { duration } = req.body; // 'day', 'week', 'month'
+    const { duration } = req.body;
     let days = 0;
     if (duration === 'day') days = 1;
     else if (duration === 'week') days = 7;
     else if (duration === 'month') days = 30;
-
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + days);
     const startedAt = new Date().toISOString();
-    
     db.prepare("UPDATE restaurants SET subscription_expires_at = ?, subscription_started_at = ?, subscription_status = 'active' WHERE id = ?").run(expiresAt.toISOString(), startedAt, req.params.id);
     res.json({ success: true, expiresAt: expiresAt.toISOString() });
   });
 
+  app.get("/api/admin/users", authenticateSuperAdmin, (req, res) => {
+    const users = db.prepare(`
+      SELECT u.id, u.email, u.name, u.created_at, u.is_super_admin,
+             r.id as restaurant_id, r.name as restaurant_name, r.slug
+      FROM users u
+      LEFT JOIN restaurants r ON r.owner_id = u.id
+      ORDER BY u.created_at DESC
+    `).all();
+    res.json(users);
+  });
+
   app.post("/api/admin/users", authenticateSuperAdmin, (req, res) => {
     const { email, password, name } = req.body;
-    const id = uuidv4();
+    const userId = uuidv4();
     const hashedPassword = bcrypt.hashSync(password, 10);
     try {
-      db.prepare("INSERT INTO users (id, email, password, name) VALUES (?, ?, ?, ?)").run(id, email, hashedPassword, name);
-      res.json({ id });
+      db.prepare("INSERT INTO users (id, email, password, name) VALUES (?, ?, ?, ?)").run(userId, email, hashedPassword, name);
+      const restaurantId = uuidv4();
+      let slug = email.split('@')[0].replace(/[^a-z0-9]/gi, '-').toLowerCase();
+      let existing = db.prepare("SELECT 1 FROM restaurants WHERE slug = ?").get(slug);
+      if (existing) slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+      const restaurantName = `مطعم ${name}`;
+      db.prepare(`
+        INSERT INTO restaurants (id, owner_id, name, slug, subscription_status, subscription_started_at, subscription_expires_at)
+        VALUES (?, ?, ?, ?, 'trial', CURRENT_TIMESTAMP, datetime('now', '+14 days'))
+      `).run(restaurantId, userId, restaurantName, slug);
+      res.json({ id: userId, restaurantId });
     } catch (e) {
       res.status(400).json({ error: "Email already exists" });
     }
+  });
+
+  app.delete("/api/admin/users/:id", authenticateSuperAdmin, (req, res) => {
+    const restaurant = db.prepare("SELECT id FROM restaurants WHERE owner_id = ?").get(req.params.id) as any;
+    if (restaurant) {
+      db.prepare("DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE restaurant_id = ?)").run(restaurant.id);
+      db.prepare("DELETE FROM messages WHERE order_id IN (SELECT id FROM orders WHERE restaurant_id = ?)").run(restaurant.id);
+      db.prepare("DELETE FROM orders WHERE restaurant_id = ?").run(restaurant.id);
+      db.prepare("DELETE FROM items WHERE restaurant_id = ?").run(restaurant.id);
+      db.prepare("DELETE FROM categories WHERE restaurant_id = ?").run(restaurant.id);
+      db.prepare("DELETE FROM zones WHERE restaurant_id = ?").run(restaurant.id);
+      db.prepare("DELETE FROM blocked_users WHERE restaurant_id = ?").run(restaurant.id);
+      db.prepare("DELETE FROM blocked_ips WHERE restaurant_id = ?").run(restaurant.id);
+      db.prepare("DELETE FROM restaurants WHERE id = ?").run(restaurant.id);
+    }
+    db.prepare("DELETE FROM users WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
   });
 
   app.get("/api/restaurants/:id", (req, res) => {
@@ -352,21 +367,6 @@ async function startServer() {
       subscriptionStartedAt: restaurant.subscription_started_at,
       subscriptionExpiresAt: restaurant.subscription_expires_at
     });
-  });
-
-  app.put("/api/restaurants/me", authenticate, (req: any, res) => {
-    const { name, minOrder, isDeliveryEnabled, whatsappNumber, themeColor, dashboardColor } = req.body;
-    db.prepare(`
-      UPDATE restaurants 
-      SET name = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, theme_color = ? 
-      WHERE owner_id = ?
-    `).run(name, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, themeColor, req.user.id);
-    
-    if (dashboardColor) {
-      db.prepare("UPDATE users SET dashboard_color = ? WHERE id = ?").run(dashboardColor, req.user.id);
-    }
-    
-    res.json({ success: true });
   });
 
   app.delete("/api/admin/restaurants/:id", authenticateSuperAdmin, (req, res) => {
@@ -388,36 +388,23 @@ async function startServer() {
 
   app.post("/api/orders", (req, res) => {
     const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, notes } = req.body;
-    
     const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
-
-    // Check if IP is blocked
     if (ip) {
       const isIpBlocked = db.prepare("SELECT 1 FROM blocked_ips WHERE restaurant_id = ? AND ip = ?").get(restaurantId, ip);
-      if (isIpBlocked) {
-        return res.status(403).json({ error: "عذراً، لقد تم حظر جهازك من قبل المطعم." });
-      }
+      if (isIpBlocked) return res.status(403).json({ error: "عذراً، لقد تم حظر جهازك من قبل المطعم." });
     }
-
-    // Check if user is blocked
     if (customerPhone) {
       const isBlocked = db.prepare("SELECT 1 FROM blocked_users WHERE restaurant_id = ? AND phone = ?").get(restaurantId, customerPhone);
-      if (isBlocked) {
-        return res.status(403).json({ error: "عذراً، لا يمكن إتمام الطلب. يرجى التواصل مع المطعم." });
-      }
+      if (isBlocked) return res.status(403).json({ error: "عذراً، لا يمكن إتمام الطلب. يرجى التواصل مع المطعم." });
     }
-
     const orderId = uuidv4();
-
     db.prepare(`
       INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes);
-
     for (const item of items) {
       db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);
     }
-
     res.json({ id: orderId });
   });
 
@@ -430,9 +417,7 @@ async function startServer() {
   app.patch("/api/orders/:id/cancel", (req, res) => {
     const order = db.prepare("SELECT status FROM orders WHERE id = ?").get(req.params.id) as any;
     if (!order) return res.status(404).json({ error: "Order not found" });
-    if (order.status !== 'pending') {
-      return res.status(400).json({ error: "لا يمكن إلغاء الطلب بعد البدء في تحضيره" });
-    }
+    if (order.status !== 'pending') return res.status(400).json({ error: "لا يمكن إلغاء الطلب بعد البدء في تحضيره" });
     db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").run(req.params.id);
     res.json({ success: true });
   });
@@ -440,26 +425,16 @@ async function startServer() {
   app.delete("/api/orders/:id", authenticate, (req, res) => {
     const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id) as any;
     if (!order) return res.status(404).json({ error: "Order not found" });
-    
-    // Only allow deleting completed or cancelled orders
-    if (order.status !== "completed" && order.status !== "cancelled") {
-      return res.status(400).json({ error: "لا يمكن حذف الطلب إلا إذا كان مكتملاً أو ملغياً" });
-    }
-    
+    if (order.status !== "completed" && order.status !== "cancelled") return res.status(400).json({ error: "لا يمكن حذف الطلب إلا إذا كان مكتملاً أو ملغياً" });
     db.prepare("DELETE FROM order_items WHERE order_id = ?").run(req.params.id);
     db.prepare("DELETE FROM messages WHERE order_id = ?").run(req.params.id);
     db.prepare("DELETE FROM orders WHERE id = ?").run(req.params.id);
     res.json({ success: true });
   });
 
-  // --- Chat Routes ---
   app.get("/api/orders/:id/messages", (req, res) => {
     const messages = db.prepare("SELECT * FROM messages WHERE order_id = ? ORDER BY created_at ASC").all(req.params.id);
-    res.json(messages.map((m: any) => ({
-      ...m,
-      orderId: m.order_id,
-      createdAt: m.created_at
-    })));
+    res.json(messages.map((m: any) => ({ ...m, orderId: m.order_id, createdAt: m.created_at })));
   });
 
   app.post("/api/orders/:id/messages", (req, res) => {
@@ -469,30 +444,15 @@ async function startServer() {
     res.json({ id, sender, text, createdAt: new Date().toISOString() });
   });
 
-  // --- Analytics ---
   app.get("/api/restaurants/:id/analytics", authenticate, (req, res) => {
     const totalRevenue = db.prepare("SELECT SUM(total) as total FROM orders WHERE restaurant_id = ? AND status = 'completed'").get(req.params.id) as any;
     const orderCount = db.prepare("SELECT COUNT(*) as count FROM orders WHERE restaurant_id = ?").get(req.params.id) as any;
     const deliveryCount = db.prepare("SELECT COUNT(*) as count FROM orders WHERE restaurant_id = ? AND type = 'delivery'").get(req.params.id) as any;
     const deliveryRevenue = db.prepare("SELECT SUM(total) as total FROM orders WHERE restaurant_id = ? AND type = 'delivery' AND status = 'completed'").get(req.params.id) as any;
-    
-    const zoneStats = db.prepare(`
-      SELECT customer_zone as name, COUNT(*) as value 
-      FROM orders 
-      WHERE restaurant_id = ? AND type = 'delivery' 
-      GROUP BY customer_zone
-    `).all(req.params.id);
-
-    res.json({
-      totalRevenue: totalRevenue.total || 0,
-      orderCount: orderCount.count || 0,
-      deliveryCount: deliveryCount.count || 0,
-      deliveryRevenue: deliveryRevenue.total || 0,
-      zoneData: zoneStats
-    });
+    const zoneStats = db.prepare(`SELECT customer_zone as name, COUNT(*) as value FROM orders WHERE restaurant_id = ? AND type = 'delivery' GROUP BY customer_zone`).all(req.params.id);
+    res.json({ totalRevenue: totalRevenue.total || 0, orderCount: orderCount.count || 0, deliveryCount: deliveryCount.count || 0, deliveryRevenue: deliveryRevenue.total || 0, zoneData: zoneStats });
   });
 
-  // --- Blocked Users ---
   app.get("/api/restaurants/:id/blocked", authenticate, (req, res) => {
     const blocked = db.prepare("SELECT * FROM blocked_users WHERE restaurant_id = ?").all(req.params.id);
     res.json(blocked);
@@ -514,7 +474,6 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // --- Blocked IPs ---
   app.get("/api/restaurants/:id/blocked-ips", authenticate, (req, res) => {
     const blocked = db.prepare("SELECT * FROM blocked_ips WHERE restaurant_id = ?").all(req.params.id);
     res.json(blocked);
@@ -536,24 +495,16 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    app.get('*', (req, res) => { res.sendFile(path.join(distPath, 'index.html')); });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  app.listen(PORT, "0.0.0.0", () => { console.log(`Server running on http://localhost:${PORT}`); });
 }
 
 startServer();
