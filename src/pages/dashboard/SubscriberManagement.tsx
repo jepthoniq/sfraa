@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../../lib/api";
-import { Plus, Trash2, Mail, User, Calendar, X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 
 interface Subscriber {
   id: string;
@@ -26,6 +26,7 @@ export default function SubscriberManagement() {
       setSubscribers(data);
     } catch (e) {
       console.error(e);
+      alert("فشل تحميل المشتركين");
     } finally {
       setLoading(false);
     }
@@ -56,6 +57,7 @@ export default function SubscriberManagement() {
     try {
       await api.delete(`/api/admin/users/${userId}`);
       fetchSubscribers();
+      alert("تم الحذف بنجاح");
     } catch (err) {
       alert("فشل الحذف");
     }
