@@ -1,4 +1,3 @@
-// API Client for SQLite Backend
 const API_BASE = "";
 
 const getHeaders = () => {
