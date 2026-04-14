@@ -66,6 +66,7 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
       window.location.reload();
     } catch (error) {
       console.error(error);
+      alert("حدث خطأ أثناء حفظ الإعدادات");
     } finally {
       setSaving(false);
     }
