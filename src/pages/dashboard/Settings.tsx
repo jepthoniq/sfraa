@@ -42,6 +42,11 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
   });
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [alertModal, setAlertModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: "" });
+
+  const showAlert = (message: string, title: string = "تنبيه") => {
+    setAlertModal({ show: true, message, title });
+  };
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -66,7 +71,7 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurant) return;
+    if (!restaurant || saving) return;
     setSaving(true);
     try {
       await api.put("/api/restaurants/me", formData);
@@ -76,11 +81,13 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
       userData.dashboardColor = formData.dashboardColor;
       localStorage.setItem("sufra_user", JSON.stringify(userData));
       
-      // Force reload to apply dashboard color if needed or just alert
-      alert("تم حفظ الإعدادات بنجاح");
-      window.location.reload();
+      showAlert("تم حفظ الإعدادات بنجاح", "نجاح");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error) {
       console.error(error);
+      showAlert("حدث خطأ أثناء حفظ الإعدادات");
     } finally {
       setSaving(false);
     }
@@ -287,10 +294,10 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
             <button 
               type="submit"
               disabled={saving}
-              className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl mt-6 hover:bg-red-700 transition-all shadow-lg shadow-red-100 flex items-center justify-center gap-2"
+              className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl mt-6 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-100 flex items-center justify-center gap-2"
             >
               <Save className="w-5 h-5" />
-              {saving ? "جاري الحفظ..." : "حفظ التغييرات"}
+              {saving ? "يرجى الانتظار..." : "حفظ التغييرات"}
             </button>
           </form>
         </div>
@@ -338,6 +345,22 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
           </div>
         </div>
       </div>
+
+      {/* Alert Modal */}
+      {alertModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 text-center shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{alertModal.title}</h3>
+            <p className="text-gray-500 mb-8 leading-relaxed">{alertModal.message}</p>
+            <button 
+              onClick={() => setAlertModal({ ...alertModal, show: false })}
+              className="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-red-600 transition-all shadow-lg"
+            >
+              موافق
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

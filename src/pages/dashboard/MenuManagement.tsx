@@ -18,6 +18,11 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [alertModal, setAlertModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: "" });
+
+  const showAlert = (message: string, title: string = "تنبيه") => {
+    setAlertModal({ show: true, message, title });
+  };
   
   const [newItem, setNewItem] = useState({
     name: "",
@@ -27,6 +32,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
     image: "",
     isAvailable: true
   });
+  const [saving, setSaving] = useState(false);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -69,7 +75,8 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
 
   const addCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurantId || !newCatName) return;
+    if (!restaurantId || !newCatName || saving) return;
+    setSaving(true);
     try {
       if (editingCategory) {
         await api.put(`/api/categories/${editingCategory.id}`, { name: newCatName });
@@ -82,6 +89,8 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
       fetchData();
     } catch (error) {
       console.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -98,7 +107,8 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
 
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurantId || !activeCategory || !newItem.name || !newItem.price) return;
+    if (!restaurantId || !activeCategory || !newItem.name || !newItem.price || saving) return;
+    setSaving(true);
     try {
       if (editingItem) {
         await api.put(`/api/items/${editingItem.id}`, {
@@ -121,6 +131,8 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
       fetchData();
     } catch (error) {
       console.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -147,7 +159,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between relative z-10">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">إدارة المنيو</h1>
           <p className="text-gray-500">نظم وجباتك وأصنافك بطريقة احترافية</p>
@@ -189,7 +201,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
       </div>
 
       {/* Categories Tabs */}
-      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 relative z-0">
         {categories.map(cat => (
           <div key={cat.id} className="relative group/cat">
             <button
@@ -203,13 +215,25 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
             </button>
           </div>
         ))}
+        {categories.length === 0 && (
+          <div className="text-gray-400 text-sm py-3 px-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+            لا توجد أقسام حالياً. ابدأ بإضافة قسم أولاً.
+          </div>
+        )}
       </div>
 
       {/* Items List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-0">
         {/* Add Item Card */}
         <button 
-          onClick={() => setShowAddItem(true)}
+          onClick={() => {
+            if (!activeCategory) {
+              showAlert("يرجى إضافة قسم أولاً قبل إضافة الوجبات");
+              setShowAddCategory(true);
+              return;
+            }
+            setShowAddItem(true);
+          }}
           className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-red-300 hover:text-red-500 transition-all group"
         >
           <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-4 group-hover:bg-red-50 transition-all">
@@ -298,7 +322,13 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
                 autoFocus
               />
               <div className="flex gap-3 pt-4">
-                <button type="submit" className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition-all">{editingCategory ? "تحديث" : "إضافة"}</button>
+                <button 
+                  type="submit" 
+                  disabled={saving}
+                  className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 disabled:opacity-50 transition-all"
+                >
+                  {saving ? "يرجى الانتظار..." : (editingCategory ? "تحديث" : "إضافة")}
+                </button>
                 <button type="button" onClick={() => {
                   setShowAddCategory(false);
                   setEditingCategory(null);
@@ -411,7 +441,13 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
                 </div>
               </div>
               <div className="flex gap-3 pt-6">
-                <button type="submit" className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition-all">{editingItem ? "تحديث الوجبة" : "حفظ الوجبة"}</button>
+                <button 
+                  type="submit" 
+                  disabled={saving}
+                  className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 disabled:opacity-50 transition-all"
+                >
+                  {saving ? "يرجى الانتظار..." : (editingItem ? "تحديث الوجبة" : "حفظ الوجبة")}
+                </button>
                 <button type="button" onClick={() => {
                   setShowAddItem(false);
                   setEditingItem(null);
@@ -419,6 +455,21 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
                 }} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200 transition-all">إلغاء</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Alert Modal */}
+      {alertModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 text-center shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{alertModal.title}</h3>
+            <p className="text-gray-500 mb-8 leading-relaxed">{alertModal.message}</p>
+            <button 
+              onClick={() => setAlertModal({ ...alertModal, show: false })}
+              className="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-red-600 transition-all shadow-lg"
+            >
+              موافق
+            </button>
           </div>
         </div>
       )}
