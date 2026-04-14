@@ -11,12 +11,44 @@ try {
   // Column probably already exists
 }
 
+try {
+  db.prepare("ALTER TABLE orders ADD COLUMN notes TEXT").run();
+} catch (e) {
+  // Column probably already exists
+}
+
+try {
+  db.prepare("ALTER TABLE items ADD COLUMN discount_price REAL").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE restaurants ADD COLUMN subscription_expires_at DATETIME").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE restaurants ADD COLUMN theme_color TEXT DEFAULT '#dc2626'").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE restaurants ADD COLUMN subscription_started_at DATETIME DEFAULT CURRENT_TIMESTAMP").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN dashboard_color TEXT DEFAULT '#dc2626'").run();
+} catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE,
     password TEXT,
-    name TEXT
+    name TEXT,
+    is_super_admin INTEGER DEFAULT 0,
+    dashboard_color TEXT DEFAULT '#dc2626'
   );
 
   CREATE TABLE IF NOT EXISTS restaurants (
@@ -29,7 +61,10 @@ db.exec(`
     min_order REAL DEFAULT 0,
     is_delivery_enabled INTEGER DEFAULT 1,
     whatsapp_number TEXT,
+    theme_color TEXT DEFAULT '#dc2626',
     subscription_status TEXT DEFAULT 'trial',
+    subscription_started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    subscription_expires_at DATETIME,
     FOREIGN KEY(owner_id) REFERENCES users(id)
   );
 
@@ -48,6 +83,7 @@ db.exec(`
     name TEXT,
     description TEXT,
     price REAL,
+    discount_price REAL,
     image TEXT,
     is_available INTEGER DEFAULT 1,
     FOREIGN KEY(restaurant_id) REFERENCES restaurants(id),
@@ -77,6 +113,7 @@ db.exec(`
     google_maps_link TEXT,
     table_number TEXT,
     customer_ip TEXT,
+    notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
   );

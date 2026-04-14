@@ -23,6 +23,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
     name: "",
     description: "",
     price: "",
+    discountPrice: "",
     image: "",
     isAvailable: true
   });
@@ -103,16 +104,18 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
         await api.put(`/api/items/${editingItem.id}`, {
           ...newItem,
           price: Number(newItem.price),
+          discountPrice: newItem.discountPrice ? Number(newItem.discountPrice) : null,
           categoryId: activeCategory
         });
       } else {
         await api.post(`/api/restaurants/${restaurantId}/items`, {
           ...newItem,
           price: Number(newItem.price),
+          discountPrice: newItem.discountPrice ? Number(newItem.discountPrice) : null,
           categoryId: activeCategory
         });
       }
-      setNewItem({ name: "", description: "", price: "", image: "", isAvailable: true });
+      setNewItem({ name: "", description: "", price: "", discountPrice: "", image: "", isAvailable: true });
       setEditingItem(null);
       setShowAddItem(false);
       fetchData();
@@ -242,6 +245,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
                       name: item.name,
                       description: item.description || "",
                       price: item.price.toString(),
+                      discountPrice: item.discountPrice?.toString() || "",
                       image: item.image || "",
                       isAvailable: item.isAvailable
                     });
@@ -262,7 +266,16 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
             <div className="p-6">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-gray-900">{item.name}</h3>
-                <span className="font-bold text-red-600">{formatCurrency(item.price)}</span>
+                <div className="text-left">
+                  {item.discountPrice ? (
+                    <>
+                      <span className="text-xs text-gray-400 line-through block">{formatCurrency(item.price)}</span>
+                      <span className="font-bold text-green-600">{formatCurrency(item.discountPrice)}</span>
+                    </>
+                  ) : (
+                    <span className="font-bold text-red-600">{formatCurrency(item.price)}</span>
+                  )}
+                </div>
               </div>
               <p className="text-sm text-gray-500 line-clamp-2">{item.description}</p>
             </div>
@@ -347,15 +360,27 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">السعر (د.ع)</label>
-                <input 
-                  type="number" 
-                  className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500"
-                  value={newItem.price}
-                  onChange={(e) => setNewItem({...newItem, price: e.target.value})}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">السعر (د.ع)</label>
+                  <input 
+                    type="number" 
+                    className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500"
+                    value={newItem.price}
+                    onChange={(e) => setNewItem({...newItem, price: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">السعر بعد الخصم</label>
+                  <input 
+                    type="number" 
+                    className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500"
+                    value={newItem.discountPrice}
+                    onChange={(e) => setNewItem({...newItem, discountPrice: e.target.value})}
+                    placeholder="اختياري"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">الوصف</label>
@@ -390,7 +415,7 @@ export default function MenuManagement({ restaurantId }: { restaurantId?: string
                 <button type="button" onClick={() => {
                   setShowAddItem(false);
                   setEditingItem(null);
-                  setNewItem({ name: "", description: "", price: "", image: "", isAvailable: true });
+                  setNewItem({ name: "", description: "", price: "", discountPrice: "", image: "", isAvailable: true });
                 }} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200 transition-all">إلغاء</button>
               </div>
             </form>

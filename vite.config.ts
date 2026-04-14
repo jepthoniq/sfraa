@@ -12,10 +12,10 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: [],
         manifest: {
-          name: 'سفرة - نظام إدارة المطاعم',
-          short_name: 'سفرة',
+          name: 'زانتكس للمطاعم - نظام إدارة المطاعم',
+          short_name: 'زانتكس',
           description: 'نظام متكامل لإدارة المطاعم والطلبات',
           theme_color: '#ffffff',
           background_color: '#ffffff',

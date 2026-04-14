@@ -8,7 +8,10 @@ export interface Restaurant {
   minOrder: number;
   isDeliveryEnabled: boolean;
   whatsappNumber?: string;
+  themeColor?: string;
   subscriptionStatus: "active" | "trial" | "expired";
+  subscriptionStartedAt?: string;
+  subscriptionExpiresAt?: string;
 }
 
 export interface MenuCategory {
@@ -22,6 +25,7 @@ export interface MenuItem {
   name: string;
   description?: string;
   price: number;
+  discountPrice?: number;
   image?: string;
   categoryId: string;
   isAvailable: boolean;
@@ -49,6 +53,7 @@ export interface Order {
   googleMapsLink?: string;
   tableNumber?: string;
   customerIp?: string;
+  notes?: string;
   createdAt: any;
 }
 

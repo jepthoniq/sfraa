@@ -9,26 +9,36 @@ import {
   BarChart3, 
   ChevronLeft, 
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = React.useState(false);
-  const [email, setEmail] = React.useState("demo@sufra.com");
+  const [email, setEmail] = React.useState("admin@zantex.com");
+  const [password, setPassword] = React.useState("password");
+  const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
-      const { token, user } = await api.post("/api/auth/login", { email, password: "password" });
+      const { token, user } = await api.post("/api/auth/login", { email, password });
       localStorage.setItem("sufra_token", token);
       localStorage.setItem("sufra_user", JSON.stringify(user));
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Login Error:", error);
-      alert("حدث خطأ أثناء تسجيل الدخول. يرجى التأكد من البيانات والمحاولة مرة أخرى.");
+      if (error.response?.data?.error) {
+        setError(error.response.data.error);
+      } else {
+        setError("حدث خطأ أثناء تسجيل الدخول. يرجى التأكد من البيانات والمحاولة مرة أخرى.");
+      }
     } finally {
       setLoading(false);
     }
@@ -53,8 +63,14 @@ export default function LandingPage() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="bg-white w-full max-w-md rounded-[2.5rem] p-8 lg:p-10 relative z-10 shadow-2xl"
             >
-              <h2 className="text-3xl font-black mb-2">مرحباً بك في سفرة</h2>
+              <h2 className="text-3xl font-black mb-2">مرحباً بك في زانتكس</h2>
               <p className="text-gray-500 mb-8">سجل دخولك للبدء في إدارة مطعمك</p>
+              
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100">
+                  {error}
+                </div>
+              )}
               
               <form onSubmit={handleLogin} className="space-y-6">
                 <div>
@@ -67,6 +83,26 @@ export default function LandingPage() {
                     placeholder="name@example.com"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2 mr-1">كلمة المرور</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-2xl outline-none transition-all font-medium"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-all"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
                 <button 
                   type="submit"
@@ -92,8 +128,8 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">س</div>
-          <span className="text-2xl font-bold tracking-tight">سفرة</span>
+          <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">ز</div>
+          <span className="text-2xl font-bold tracking-tight">زانتكس للمطاعم</span>
         </div>
         <button 
           onClick={() => setShowLoginModal(true)}
@@ -222,10 +258,13 @@ export default function LandingPage() {
       <footer className="border-t border-gray-100 py-12">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold">س</div>
-            <span className="text-xl font-bold">سفرة</span>
+            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold">ز</div>
+            <span className="text-xl font-bold">زانتكس للمطاعم</span>
           </div>
-          <p className="text-gray-400 text-sm">© 2024 سفرة. جميع الحقوق محفوظة. صُنع في العراق 🇮🇶</p>
+          <div className="text-center md:text-right">
+            <p className="text-gray-400 text-sm">© 2024 زانتكس للمطاعم. جميع الحقوق محفوظة.</p>
+            <p className="text-red-600 text-xs font-bold mt-1">حقوق الملكية: حسين علي الجبوري</p>
+          </div>
           <div className="flex gap-6">
             <a href="#" className="text-gray-400 hover:text-red-600 transition-all">شروط الخدمة</a>
             <a href="#" className="text-gray-400 hover:text-red-600 transition-all">سياسة الخصوصية</a>

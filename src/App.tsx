@@ -9,6 +9,7 @@ import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import PublicMenu from "./pages/PublicMenu";
 import OrderTracking from "./pages/OrderTracking";
+import SuperAdminPortal from "./pages/SuperAdminPortal";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/dashboard/*" element={<Dashboard />} />
+            <Route path="/super-admin" element={<SuperAdminPortal />} />
             <Route path="/r/:slug" element={<PublicMenu />} />
             <Route path="/order/:orderId" element={<OrderTracking />} />
           </Routes>

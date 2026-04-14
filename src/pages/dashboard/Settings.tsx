@@ -11,9 +11,21 @@ import {
   Download,
   Copy,
   Check,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Palette
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+
+const THEME_COLORS = [
+  { name: "أحمر زانتكس", value: "#dc2626" },
+  { name: "أزرق ملكي", value: "#2563eb" },
+  { name: "أخضر زمردي", value: "#059669" },
+  { name: "برتقالي دافئ", value: "#ea580c" },
+  { name: "بنفسجي غامق", value: "#7c3aed" },
+  { name: "وردي جذاب", value: "#db2777" },
+  { name: "أسود فخم", value: "#111827" },
+  { name: "بني كلاسيك", value: "#78350f" },
+];
 
 export default function DashboardSettings({ restaurant }: { restaurant: Restaurant | null }) {
   const [formData, setFormData] = useState({
@@ -22,7 +34,9 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
     minOrder: restaurant?.minOrder || 0,
     isDeliveryEnabled: restaurant?.isDeliveryEnabled ?? true,
     whatsappNumber: restaurant?.whatsappNumber || "",
-    logo: restaurant?.logo || ""
+    logo: restaurant?.logo || "",
+    themeColor: restaurant?.themeColor || "#dc2626",
+    dashboardColor: JSON.parse(localStorage.getItem("sufra_user") || "{}").dashboardColor || "#dc2626"
   });
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,7 +68,15 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
     setSaving(true);
     try {
       await api.put("/api/restaurants/me", formData);
+      
+      // Update local storage user data for dashboard color
+      const userData = JSON.parse(localStorage.getItem("sufra_user") || "{}");
+      userData.dashboardColor = formData.dashboardColor;
+      localStorage.setItem("sufra_user", JSON.stringify(userData));
+      
+      // Force reload to apply dashboard color if needed or just alert
       alert("تم حفظ الإعدادات بنجاح");
+      window.location.reload();
     } catch (error) {
       console.error(error);
     } finally {
@@ -158,6 +180,55 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
               <p className="text-[10px] text-gray-400 mt-1">أدخل الرقم مع رمز الدولة بدون (+) ليتمكن الزبائن من إرسال طلباتهم عبر الواتساب.</p>
             </div>
             <div className="pt-4">
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Palette className="w-4 h-4" />
+                لون لوحة التحكم (Dashboard)
+              </h3>
+              <div className="flex items-center gap-4 mb-6">
+                <input 
+                  type="color" 
+                  value={formData.dashboardColor}
+                  onChange={(e) => setFormData({ ...formData, dashboardColor: e.target.value })}
+                  className="w-12 h-12 rounded-xl cursor-pointer border-none bg-transparent"
+                />
+                <input 
+                  type="text" 
+                  value={formData.dashboardColor}
+                  onChange={(e) => setFormData({ ...formData, dashboardColor: e.target.value })}
+                  className="flex-1 bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500 font-mono text-sm"
+                  placeholder="#HEX Color"
+                />
+              </div>
+
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Palette className="w-4 h-4" />
+                ثيم صفحة الزبائن
+              </h3>
+              <div className="grid grid-cols-4 gap-3 mb-6">
+                {THEME_COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, themeColor: color.value })}
+                    className={cn(
+                      "group relative flex flex-col items-center gap-2 p-2 rounded-2xl border-2 transition-all",
+                      formData.themeColor === color.value ? "border-red-600 bg-red-50" : "border-transparent bg-gray-50 hover:bg-gray-100"
+                    )}
+                  >
+                    <div 
+                      className="w-8 h-8 rounded-full shadow-sm" 
+                      style={{ backgroundColor: color.value }}
+                    />
+                    <span className="text-[8px] font-bold text-gray-600">{color.name}</span>
+                    {formData.themeColor === color.value && (
+                      <div className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5">
+                        <Check className="w-2 h-2" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              
               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">إعدادات التوصيل</h3>
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
                 <div className="flex items-center gap-3">

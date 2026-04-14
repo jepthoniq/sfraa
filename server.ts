@@ -34,7 +34,32 @@ async function startServer() {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "Unauthorized" });
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      req.user = decoded;
+      
+      // Check subscription for non-super-admins
+      if (!decoded.isSuperAdmin) {
+        const restaurant = db.prepare("SELECT * FROM restaurants WHERE owner_id = ?").get(decoded.id) as any;
+        if (restaurant && restaurant.subscription_expires_at) {
+          const expiresAt = new Date(restaurant.subscription_expires_at);
+          if (expiresAt < new Date()) {
+            return res.status(403).json({ error: "لقد انتهى اشتراكك. يرجى التواصل مع الإدارة للتجديد.", expired: true });
+          }
+        }
+      }
+      
+      next();
+    } catch (e) {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  };
+
+  const authenticateSuperAdmin = (req: any, res: any, next: any) => {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      if (!decoded.isSuperAdmin) return res.status(403).json({ error: "Forbidden" });
       req.user = decoded;
       next();
     } catch (e) {
@@ -46,18 +71,30 @@ async function startServer() {
   app.post("/api/auth/login", (req, res) => {
     try {
       const { email, password } = req.body;
-      // For demo/SaaS, we'll auto-register if user doesn't exist
+      
+      // Bootstrap first super admin if none exists
+      const superAdminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE is_super_admin = 1").get() as any;
+      if (superAdminCount.count === 0 && email === "admin@zantex.com") {
+        const id = uuidv4();
+        const hashedPassword = bcrypt.hashSync(password || "password", 10);
+        db.prepare("INSERT INTO users (id, email, password, name, is_super_admin) VALUES (?, ?, ?, ?, 1)").run(id, email, hashedPassword, "Super Admin");
+      }
+
       let user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
       
       if (!user) {
         const id = uuidv4();
         const hashedPassword = bcrypt.hashSync(password || "password", 10);
         db.prepare("INSERT INTO users (id, email, password, name) VALUES (?, ?, ?, ?)").run(id, email, hashedPassword, email.split('@')[0]);
-        user = { id, email, name: email.split('@')[0] };
+        user = { id, email, name: email.split('@')[0], is_super_admin: 0 };
       }
 
-      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
-      res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+      if (!bcrypt.compareSync(password || "password", user.password)) {
+        return res.status(401).json({ error: "Invalid password" });
+      }
+
+      const token = jwt.sign({ id: user.id, email: user.email, isSuperAdmin: !!user.is_super_admin }, JWT_SECRET, { expiresIn: '30d' });
+      res.json({ token, user: { id: user.id, email: user.email, name: user.name, isSuperAdmin: !!user.is_super_admin, dashboardColor: user.dashboard_color } });
     } catch (error) {
       console.error("Login Route Error:", error);
       res.status(500).json({ error: "Internal Server Error" });
@@ -78,7 +115,11 @@ async function startServer() {
         ownerId: newRest.owner_id,
         minOrder: newRest.min_order,
         isDeliveryEnabled: !!newRest.is_delivery_enabled,
-        subscriptionStatus: newRest.subscription_status
+        whatsappNumber: newRest.whatsapp_number,
+        themeColor: newRest.theme_color,
+        subscriptionStatus: newRest.subscription_status,
+        subscriptionStartedAt: newRest.subscription_started_at,
+        subscriptionExpiresAt: newRest.subscription_expires_at
       });
     }
     res.json({
@@ -86,7 +127,11 @@ async function startServer() {
       ownerId: restaurant.owner_id,
       minOrder: restaurant.min_order,
       isDeliveryEnabled: !!restaurant.is_delivery_enabled,
-      subscriptionStatus: restaurant.subscription_status
+      whatsappNumber: restaurant.whatsapp_number,
+      themeColor: restaurant.theme_color,
+      subscriptionStatus: restaurant.subscription_status,
+      subscriptionStartedAt: restaurant.subscription_started_at,
+      subscriptionExpiresAt: restaurant.subscription_expires_at
     });
   });
 
@@ -107,7 +152,10 @@ async function startServer() {
       minOrder: restaurant.min_order,
       isDeliveryEnabled: !!restaurant.is_delivery_enabled,
       whatsappNumber: restaurant.whatsapp_number,
+      themeColor: restaurant.theme_color,
       subscriptionStatus: restaurant.subscription_status,
+      subscriptionStartedAt: restaurant.subscription_started_at,
+      subscriptionExpiresAt: restaurant.subscription_expires_at,
       isIpBlocked
     });
   });
@@ -158,20 +206,21 @@ async function startServer() {
     res.json(items.map((i: any) => ({ 
       ...i, 
       isAvailable: !!i.is_available,
-      categoryId: i.category_id 
+      categoryId: i.category_id,
+      discountPrice: i.discount_price
     })));
   });
 
   app.post("/api/restaurants/:id/items", authenticate, (req, res) => {
-    const { name, description, price, image, categoryId } = req.body;
+    const { name, description, price, discountPrice, image, categoryId } = req.body;
     const id = uuidv4();
-    db.prepare("INSERT INTO items (id, restaurant_id, category_id, name, description, price, image) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, req.params.id, categoryId, name, description, price, image);
+    db.prepare("INSERT INTO items (id, restaurant_id, category_id, name, description, price, discount_price, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, req.params.id, categoryId, name, description, price, discountPrice, image);
     res.json({ id });
   });
 
   app.put("/api/items/:id", authenticate, (req, res) => {
-    const { name, description, price, image, categoryId } = req.body;
-    db.prepare("UPDATE items SET name = ?, description = ?, price = ?, image = ?, category_id = ? WHERE id = ?").run(name, description, price, image, categoryId, req.params.id);
+    const { name, description, price, discountPrice, image, categoryId } = req.body;
+    db.prepare("UPDATE items SET name = ?, description = ?, price = ?, discount_price = ?, image = ?, category_id = ? WHERE id = ?").run(name, description, price, discountPrice, image, categoryId, req.params.id);
     res.json({ success: true });
   });
 
@@ -247,6 +296,48 @@ async function startServer() {
     });
   });
 
+  // --- Super Admin Routes ---
+  app.get("/api/admin/restaurants", authenticateSuperAdmin, (req, res) => {
+    const restaurants = db.prepare(`
+      SELECT r.*, u.email as owner_email 
+      FROM restaurants r 
+      JOIN users u ON r.owner_id = u.id
+    `).all();
+    res.json(restaurants.map((r: any) => ({
+      ...r,
+      ownerEmail: r.owner_email,
+      subscriptionStartedAt: r.subscription_started_at,
+      subscriptionExpiresAt: r.subscription_expires_at
+    })));
+  });
+
+  app.post("/api/admin/restaurants/:id/subscription", authenticateSuperAdmin, (req, res) => {
+    const { duration } = req.body; // 'day', 'week', 'month'
+    let days = 0;
+    if (duration === 'day') days = 1;
+    else if (duration === 'week') days = 7;
+    else if (duration === 'month') days = 30;
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + days);
+    const startedAt = new Date().toISOString();
+    
+    db.prepare("UPDATE restaurants SET subscription_expires_at = ?, subscription_started_at = ?, subscription_status = 'active' WHERE id = ?").run(expiresAt.toISOString(), startedAt, req.params.id);
+    res.json({ success: true, expiresAt: expiresAt.toISOString() });
+  });
+
+  app.post("/api/admin/users", authenticateSuperAdmin, (req, res) => {
+    const { email, password, name } = req.body;
+    const id = uuidv4();
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    try {
+      db.prepare("INSERT INTO users (id, email, password, name) VALUES (?, ?, ?, ?)").run(id, email, hashedPassword, name);
+      res.json({ id });
+    } catch (e) {
+      res.status(400).json({ error: "Email already exists" });
+    }
+  });
+
   app.get("/api/restaurants/:id", (req, res) => {
     const restaurant = db.prepare("SELECT * FROM restaurants WHERE id = ?").get(req.params.id) as any;
     if (!restaurant) return res.status(404).json({ error: "Not found" });
@@ -256,12 +347,47 @@ async function startServer() {
       minOrder: restaurant.min_order,
       isDeliveryEnabled: !!restaurant.is_delivery_enabled,
       whatsappNumber: restaurant.whatsapp_number,
-      subscriptionStatus: restaurant.subscription_status
+      themeColor: restaurant.theme_color,
+      subscriptionStatus: restaurant.subscription_status,
+      subscriptionStartedAt: restaurant.subscription_started_at,
+      subscriptionExpiresAt: restaurant.subscription_expires_at
     });
   });
 
+  app.put("/api/restaurants/me", authenticate, (req: any, res) => {
+    const { name, minOrder, isDeliveryEnabled, whatsappNumber, themeColor, dashboardColor } = req.body;
+    db.prepare(`
+      UPDATE restaurants 
+      SET name = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, theme_color = ? 
+      WHERE owner_id = ?
+    `).run(name, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, themeColor, req.user.id);
+    
+    if (dashboardColor) {
+      db.prepare("UPDATE users SET dashboard_color = ? WHERE id = ?").run(dashboardColor, req.user.id);
+    }
+    
+    res.json({ success: true });
+  });
+
+  app.delete("/api/admin/restaurants/:id", authenticateSuperAdmin, (req, res) => {
+    const restaurant = db.prepare("SELECT owner_id FROM restaurants WHERE id = ?").get(req.params.id) as any;
+    if (restaurant) {
+      db.prepare("DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE restaurant_id = ?)").run(req.params.id);
+      db.prepare("DELETE FROM messages WHERE order_id IN (SELECT id FROM orders WHERE restaurant_id = ?)").run(req.params.id);
+      db.prepare("DELETE FROM orders WHERE restaurant_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM items WHERE restaurant_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM categories WHERE restaurant_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM zones WHERE restaurant_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM blocked_users WHERE restaurant_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM blocked_ips WHERE restaurant_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM restaurants WHERE id = ?").run(req.params.id);
+      db.prepare("DELETE FROM users WHERE id = ?").run(restaurant.owner_id);
+    }
+    res.json({ success: true });
+  });
+
   app.post("/api/orders", (req, res) => {
-    const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber } = req.body;
+    const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, notes } = req.body;
     
     const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
 
@@ -284,9 +410,9 @@ async function startServer() {
     const orderId = uuidv4();
 
     db.prepare(`
-      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip);
+      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes);
 
     for (const item of items) {
       db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);

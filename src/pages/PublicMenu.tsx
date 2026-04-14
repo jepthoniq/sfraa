@@ -18,7 +18,7 @@ export default function PublicMenu() {
   const [loading, setLoading] = useState(true);
   const [orderType, setOrderType] = useState<"dine-in" | "delivery">("dine-in");
   const [cart, setCart] = useState<OrderItem[]>(() => {
-    const saved = localStorage.getItem("sufra_cart");
+    const saved = localStorage.getItem("zantex_cart");
     return saved ? JSON.parse(saved) : [];
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -26,7 +26,7 @@ export default function PublicMenu() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeOrders, setActiveOrders] = useState<string[]>(() => {
-    const saved = localStorage.getItem("sufra_active_orders");
+    const saved = localStorage.getItem("zantex_active_orders");
     return saved ? JSON.parse(saved) : [];
   });
   const [isActiveOrdersOpen, setIsActiveOrdersOpen] = useState(false);
@@ -43,16 +43,17 @@ export default function PublicMenu() {
   const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
   const [googleMapsLink, setGoogleMapsLink] = useState("");
   const [tableNumber, setTableNumber] = useState("");
+  const [orderNotes, setOrderNotes] = useState("");
   const [showMap, setShowMap] = useState(false);
   const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem("sufra_cart", JSON.stringify(cart));
+    localStorage.setItem("zantex_cart", JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem("sufra_active_orders", JSON.stringify(activeOrders));
+    localStorage.setItem("zantex_active_orders", JSON.stringify(activeOrders));
   }, [activeOrders]);
 
   useEffect(() => {
@@ -77,18 +78,15 @@ export default function PublicMenu() {
 
           // Only remove from activeOrders if they are deleted or if we want to clean up completed ones
           // For now, let's keep them in the list so the icon doesn't disappear immediately
-          const activeOnly = results.filter(o => 
-            o.status !== 'completed' && 
-            o.status !== 'cancelled' && 
-            o.status !== 'deleted'
-          );
+          const validOrders = results.filter(o => o.status !== 'deleted');
 
-          if (activeOnly.length !== activeOrders.length) {
-            // We keep them in the state for the UI, but update the localStorage for the next session
-            // if we really want them gone. But for the current session, let's keep the icon visible.
+          if (validOrders.length !== activeOrders.length) {
+            const validIds = validOrders.map(o => o.id);
+            setActiveOrders(validIds);
+            localStorage.setItem("zantex_active_orders", JSON.stringify(validIds));
           }
           
-          setOrdersWithStatus(results.filter(o => o.status !== 'deleted'));
+          setOrdersWithStatus(validOrders);
 
           // Check for unread messages
           let unreadSum = 0;
@@ -123,7 +121,7 @@ export default function PublicMenu() {
   useEffect(() => {
     if (!restaurant?.id) return;
     const checkBlockStatus = async () => {
-      const savedPhone = localStorage.getItem("sufra_customer_phone");
+      const savedPhone = localStorage.getItem("zantex_customer_phone");
       if (savedPhone) {
         try {
           const blockedUsers = await api.get(`/api/restaurants/${restaurant.id}/blocked`);
@@ -140,7 +138,7 @@ export default function PublicMenu() {
 
   useEffect(() => {
     if (customerPhone) {
-      localStorage.setItem("sufra_customer_phone", customerPhone);
+      localStorage.setItem("zantex_customer_phone", customerPhone);
     }
   }, [customerPhone]);
 
@@ -178,10 +176,11 @@ export default function PublicMenu() {
   const addToCart = (item: MenuItem) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
+      const priceToUse = item.discountPrice || item.price;
       if (existing) {
         return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { id: item.id, name: item.name, price: item.price, quantity: 1 }];
+      return [...prev, { id: item.id, name: item.name, price: priceToUse, quantity: 1 }];
     });
   };
 
@@ -251,15 +250,16 @@ export default function PublicMenu() {
         customerZone: orderType === "delivery" ? selectedZone?.name : null,
         googleMapsLink: orderType === "delivery" ? googleMapsLink : null,
         tableNumber: orderType === "dine-in" ? tableNumber : null,
+        notes: orderNotes,
       };
 
       const res = await api.post("/api/orders", orderData);
-      localStorage.removeItem("sufra_cart");
+      localStorage.removeItem("zantex_cart");
       setCart([]); // Clear cart state immediately
       
       const newActiveOrders = [...activeOrders, res.id];
       setActiveOrders(newActiveOrders);
-      localStorage.setItem("sufra_active_orders", JSON.stringify(newActiveOrders));
+      localStorage.setItem("zantex_active_orders", JSON.stringify(newActiveOrders));
       
       // If WhatsApp is enabled and user chose it, redirect
       if (viaWhatsapp && restaurant.whatsappNumber) {
@@ -331,8 +331,21 @@ export default function PublicMenu() {
     (searchQuery ? item.name.toLowerCase().includes(searchQuery.toLowerCase()) : true)
   );
 
+  const themeColor = restaurant.themeColor || "#dc2626";
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24 font-sans" dir="rtl">
+      <style>{`
+        :root {
+          --theme-color: ${themeColor};
+          --theme-color-light: ${themeColor}15;
+        }
+        .bg-theme { background-color: var(--theme-color) !important; }
+        .text-theme { color: var(--theme-color) !important; }
+        .border-theme { border-color: var(--theme-color) !important; }
+        .ring-theme:focus { --tw-ring-color: var(--theme-color) !important; }
+        .bg-theme-light { background-color: var(--theme-color-light) !important; }
+      `}</style>
       {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-30">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
@@ -351,30 +364,30 @@ export default function PublicMenu() {
                       setIsActiveOrdersOpen(true);
                     }
                   }}
-                  className="relative p-2 text-blue-600 bg-blue-50 rounded-full"
+                  className="relative p-2 text-theme bg-theme-light rounded-full"
                 >
                   <MessageSquare className="w-6 h-6" />
                   {totalUnread > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                    <span className="absolute -top-1 -right-1 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
                       {totalUnread}
                     </span>
                   )}
                 </button>
                 <button 
                   onClick={() => setIsActiveOrdersOpen(true)}
-                  className="relative p-2 text-red-600 bg-red-50 rounded-full"
+                  className="relative p-2 text-theme bg-theme-light rounded-full"
                 >
                   <ClipboardList className="w-6 h-6" />
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                    {activeOrders.length || JSON.parse(localStorage.getItem("sufra_active_orders") || "[]").length}
+                  <span className="absolute -top-1 -right-1 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {activeOrders.length || JSON.parse(localStorage.getItem("zantex_active_orders") || "[]").length}
                   </span>
                 </button>
               </>
             )}
-            <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-gray-600">
+            <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-gray-600 hover:text-theme transition-colors">
               <ShoppingBag className="w-6 h-6" />
               {cart.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-theme text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
                   {cart.reduce((a, b) => a + b.quantity, 0)}
                 </span>
               )}
@@ -389,7 +402,7 @@ export default function PublicMenu() {
               onClick={() => setOrderType("dine-in")}
               className={cn(
                 "flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
-                orderType === "dine-in" ? "bg-white shadow-sm text-red-600" : "text-gray-500"
+                orderType === "dine-in" ? "bg-white shadow-sm text-theme" : "text-gray-500"
               )}
             >
               <Utensils className="w-4 h-4" />
@@ -399,7 +412,7 @@ export default function PublicMenu() {
               onClick={() => setOrderType("delivery")}
               className={cn(
                 "flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
-                orderType === "delivery" ? "bg-white shadow-sm text-red-600" : "text-gray-500"
+                orderType === "delivery" ? "bg-white shadow-sm text-theme" : "text-gray-500"
               )}
             >
               <MapPin className="w-4 h-4" />
@@ -416,7 +429,7 @@ export default function PublicMenu() {
           <input 
             type="text" 
             placeholder="ابحث عن وجبة..." 
-            className="w-full bg-white border-none rounded-xl py-3 pr-10 pl-4 shadow-sm focus:ring-2 focus:ring-red-500"
+            className="w-full bg-white border-none rounded-xl py-3 pr-10 pl-4 shadow-sm focus:ring-2 focus:ring-theme ring-theme"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -429,7 +442,7 @@ export default function PublicMenu() {
           onClick={() => setActiveCategory("all")}
           className={cn(
             "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all",
-            activeCategory === "all" ? "bg-red-600 text-white" : "bg-white text-gray-600 border border-gray-100"
+            activeCategory === "all" ? "bg-theme text-white" : "bg-white text-gray-600 border border-gray-100"
           )}
         >
           الكل
@@ -440,7 +453,7 @@ export default function PublicMenu() {
             onClick={() => setActiveCategory(cat.id)}
             className={cn(
               "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all",
-              activeCategory === cat.id ? "bg-red-600 text-white" : "bg-white text-gray-600 border border-gray-100"
+              activeCategory === cat.id ? "bg-theme text-white" : "bg-white text-gray-600 border border-gray-100"
             )}
           >
             {cat.name}
@@ -472,24 +485,31 @@ export default function PublicMenu() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
               <div className="absolute bottom-2 right-2">
                 <div className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-lg shadow-sm">
-                  <span className="font-black text-xs text-gray-900">{formatCurrency(item.price)}</span>
+                  {item.discountPrice ? (
+                    <div className="flex flex-col items-end">
+                      <span className="text-[8px] text-gray-400 line-through leading-none">{formatCurrency(item.price)}</span>
+                      <span className="font-black text-xs text-green-600 leading-none">{formatCurrency(item.discountPrice)}</span>
+                    </div>
+                  ) : (
+                    <span className="font-black text-xs text-gray-900">{formatCurrency(item.price)}</span>
+                  )}
                 </div>
               </div>
               {!item.isAvailable && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <span className="text-white text-[8px] font-bold uppercase tracking-widest bg-red-600 px-2 py-0.5 rounded-full">نفذت</span>
+                  <span className="text-white text-[8px] font-bold uppercase tracking-widest bg-theme px-2 py-0.5 rounded-full">نفذت</span>
                 </div>
               )}
             </div>
             
             <div className="p-3 flex-1 flex flex-col">
-              <h3 className="font-bold text-sm text-gray-900 line-clamp-1 mb-1 group-hover:text-red-600 transition-colors">{item.name}</h3>
+              <h3 className="font-bold text-sm text-gray-900 line-clamp-1 mb-1 group-hover:text-theme transition-colors">{item.name}</h3>
               <p className="text-[10px] text-gray-400 leading-tight mb-3 line-clamp-2 flex-1">{item.description}</p>
               
               <button 
                 onClick={() => addToCart(item)}
                 disabled={!item.isAvailable}
-                className="w-full bg-gray-900 text-white py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50"
+                className="w-full bg-gray-900 text-white py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-theme active:scale-95 transition-all disabled:opacity-50"
               >
                 <Plus className="w-3 h-3" />
                 إضافة
@@ -700,6 +720,15 @@ export default function PublicMenu() {
                         />
                       </div>
                     )}
+
+                    <div className="mt-4">
+                      <textarea 
+                        placeholder="ملاحظات إضافية (مثلاً: بدون خضروات، بدون طماطم...)" 
+                        className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 h-24 text-sm"
+                        value={orderNotes}
+                        onChange={(e) => setOrderNotes(e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   {/* Summary */}
@@ -791,6 +820,15 @@ export default function PublicMenu() {
           </button>
         </div>
       )}
+      {/* Footer */}
+      <footer className="max-w-md mx-auto px-4 py-12 text-center border-t border-gray-100 mt-12">
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold">ز</div>
+          <span className="text-xl font-bold text-gray-900">زانتكس للمطاعم</span>
+        </div>
+        <p className="text-gray-400 text-xs mb-1">© 2024 زانتكس للمطاعم. جميع الحقوق محفوظة.</p>
+        <p className="text-red-600 text-[10px] font-bold">حقوق الملكية: حسين علي الجبوري</p>
+      </footer>
     </div>
   );
 }

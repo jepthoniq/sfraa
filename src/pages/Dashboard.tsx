@@ -16,7 +16,9 @@ import {
   Menu as MenuIcon, 
   X,
   ClipboardList,
-  Bell
+  Bell,
+  ShieldCheck,
+  Calendar
 } from "lucide-react";
 
 import Orders from "./dashboard/Orders";
@@ -91,14 +93,20 @@ export default function Dashboard() {
     { name: "الإعدادات", icon: Settings, path: "/dashboard/settings" },
   ];
 
+  if (user?.isSuperAdmin) {
+    navItems.push({ name: "الإدارة العليا", icon: ShieldCheck, path: "/super-admin" });
+  }
+
   if (loading) return <LoadingScreen />;
 
+  const dashboardColor = user?.dashboardColor || "#dc2626";
+
   return (
-    <div className="min-h-screen bg-gray-50 flex font-sans" dir="rtl">
+    <div className="min-h-screen bg-gray-50 flex font-sans" dir="rtl" style={{ "--dashboard-color": dashboardColor } as any}>
       {/* Sidebar Desktop */}
       <aside className="hidden lg:flex flex-col w-64 bg-white border-l border-gray-200 sticky top-0 h-screen">
         <div className="p-6 border-b border-gray-100">
-          <h1 className="text-2xl font-bold text-red-600">سفرة</h1>
+          <h1 className="text-2xl font-bold" style={{ color: dashboardColor }}>زانتكس</h1>
           <p className="text-xs text-gray-500 mt-1">لوحة تحكم المطعم</p>
         </div>
         
@@ -110,7 +118,7 @@ export default function Dashboard() {
               className={cn(
                 "flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
                 location.pathname === item.path 
-                  ? "bg-red-50 text-red-600" 
+                  ? "bg-[var(--dashboard-color)]/10 text-[var(--dashboard-color)]" 
                   : "text-gray-600 hover:bg-gray-50"
               )}
             >
@@ -119,18 +127,45 @@ export default function Dashboard() {
                 {item.name}
               </div>
               {item.name === "الطلبات" && newOrdersCount > 0 && (
-                <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+                <span className="bg-[var(--dashboard-color)] text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
                   {newOrdersCount}
                 </span>
               )}
             </Link>
           ))}
+
+          {restaurant && (
+            <div className="mt-8 px-4 py-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex items-center gap-2 mb-3 text-gray-900">
+                <Calendar className="w-4 h-4" style={{ color: dashboardColor }} />
+                <span className="text-xs font-bold">معلومات الاشتراك</span>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-[10px] text-gray-400">تاريخ البدء</p>
+                  <p className="text-[10px] font-bold text-gray-700">
+                    {restaurant.subscriptionStartedAt ? new Date(restaurant.subscriptionStartedAt).toLocaleDateString('ar-IQ') : 'غير متوفر'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400">تاريخ الانتهاء</p>
+                  <p className="text-[10px] font-bold" style={{ color: dashboardColor }}>
+                    {restaurant.subscriptionExpiresAt ? new Date(restaurant.subscriptionExpiresAt).toLocaleDateString('ar-IQ') : 'غير متوفر'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-gray-100">
+          <div className="mb-4 px-4">
+            <p className="text-[10px] text-gray-400">حقوق الملكية</p>
+            <p className="text-[10px] font-bold" style={{ color: dashboardColor }}>حسين علي الجبوري</p>
+          </div>
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all w-full"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-[var(--dashboard-color)]/10 hover:text-[var(--dashboard-color)] transition-all w-full"
           >
             <LogOut className="w-5 h-5" />
             تسجيل الخروج
@@ -143,12 +178,12 @@ export default function Dashboard() {
         <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-600">
           <MenuIcon className="w-6 h-6" />
         </button>
-        <h1 className="text-xl font-bold text-red-600">سفرة</h1>
+        <h1 className="text-xl font-bold" style={{ color: dashboardColor }}>زانتكس</h1>
         <div className="relative">
           <button onClick={() => navigate("/dashboard")} className="p-2 text-gray-600">
             <Bell className="w-6 h-6" />
             {newOrdersCount > 0 && (
-              <span className="absolute top-1 right-1 bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+              <span className="absolute top-1 right-1 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white" style={{ backgroundColor: dashboardColor }}>
                 {newOrdersCount}
               </span>
             )}
@@ -174,7 +209,7 @@ export default function Dashboard() {
               className="fixed inset-y-0 right-0 w-72 bg-white z-50 lg:hidden shadow-2xl"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-red-600">سفرة</h1>
+                <h1 className="text-2xl font-bold" style={{ color: dashboardColor }}>زانتكس</h1>
                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-gray-400">
                   <X className="w-6 h-6" />
                 </button>
@@ -188,7 +223,7 @@ export default function Dashboard() {
                     className={cn(
                       "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
                       location.pathname === item.path 
-                        ? "bg-red-50 text-red-600" 
+                        ? "bg-[var(--dashboard-color)]/10 text-[var(--dashboard-color)]" 
                         : "text-gray-600 hover:bg-gray-50"
                     )}
                   >
@@ -196,6 +231,29 @@ export default function Dashboard() {
                     {item.name}
                   </Link>
                 ))}
+
+                {restaurant && (
+                  <div className="mt-8 px-4 py-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="flex items-center gap-2 mb-3 text-gray-900">
+                      <Calendar className="w-4 h-4" style={{ color: dashboardColor }} />
+                      <span className="text-xs font-bold">معلومات الاشتراك</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-[10px] text-gray-400">تاريخ البدء</p>
+                        <p className="text-[10px] font-bold text-gray-700">
+                          {restaurant.subscriptionStartedAt ? new Date(restaurant.subscriptionStartedAt).toLocaleDateString('ar-IQ') : 'غير متوفر'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400">تاريخ الانتهاء</p>
+                        <p className="text-[10px] font-bold" style={{ color: dashboardColor }}>
+                          {restaurant.subscriptionExpiresAt ? new Date(restaurant.subscriptionExpiresAt).toLocaleDateString('ar-IQ') : 'غير متوفر'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </nav>
               <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100">
                 <button 

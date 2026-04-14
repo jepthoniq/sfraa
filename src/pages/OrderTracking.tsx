@@ -44,7 +44,7 @@ export default function OrderTracking() {
   const [showChat, setShowChat] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [activeOrders, setActiveOrders] = useState<string[]>(() => {
-    const saved = localStorage.getItem("sufra_active_orders");
+    const saved = localStorage.getItem("zantex_active_orders");
     return saved ? JSON.parse(saved) : [];
   });
   const [isActiveOrdersOpen, setIsActiveOrdersOpen] = useState(false);
@@ -74,7 +74,7 @@ export default function OrderTracking() {
 
           if (stillActive.length !== activeOrders.length) {
             setActiveOrders(stillActive.map(o => o.id));
-            localStorage.setItem("sufra_active_orders", JSON.stringify(stillActive.map(o => o.id)));
+            localStorage.setItem("zantex_active_orders", JSON.stringify(stillActive.map(o => o.id)));
           }
           
           setOrdersWithStatus(results.filter(o => o.status !== 'deleted'));
@@ -117,11 +117,11 @@ export default function OrderTracking() {
 
   useEffect(() => {
     if (order?.status === 'completed' || order?.status === 'cancelled') {
-      const saved = localStorage.getItem("sufra_active_orders");
+      const saved = localStorage.getItem("zantex_active_orders");
       if (saved) {
         const activeOrders = JSON.parse(saved) as string[];
         const filtered = activeOrders.filter(id => id !== orderId);
-        localStorage.setItem("sufra_active_orders", JSON.stringify(filtered));
+        localStorage.setItem("zantex_active_orders", JSON.stringify(filtered));
       }
     }
   }, [order?.status, orderId]);
@@ -342,12 +342,10 @@ export default function OrderTracking() {
           </div>
         )}
 
-        <Link 
-          to="/"
-          className="block text-center text-sm text-gray-400 hover:text-red-600 transition-all"
-        >
-          مدعوم بواسطة سفرة
-        </Link>
+        <div className="text-center mt-8">
+          <p className="text-xs text-gray-400 mb-1">مدعوم بواسطة زانتكس للمطاعم</p>
+          <p className="text-red-600 text-[10px] font-bold">حقوق الملكية: حسين علي الجبوري</p>
+        </div>
       </div>
 
       {/* Active Orders Modal */}
@@ -437,7 +435,7 @@ export default function OrderTracking() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
             onViewportEnter={() => {
-              localStorage.setItem(`sufra_last_read_${orderId}`, Date.now().toString());
+              localStorage.setItem(`zantex_last_read_${orderId}`, Date.now().toString());
             }}
             className="fixed inset-0 z-50 md:inset-auto md:bottom-24 md:right-6 md:w-96 md:h-[600px] p-4 md:p-0"
           >

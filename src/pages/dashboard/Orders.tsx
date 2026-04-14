@@ -26,7 +26,7 @@ import Chat from "../../components/Chat";
 
 export default function Orders({ restaurantId }: { restaurantId?: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filter, setFilter] = useState<"all" | "dine-in" | "delivery" | "blocked">("all");
+  const [filter, setFilter] = useState<"active" | "dine-in" | "delivery" | "blocked" | "history">("active");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
@@ -129,9 +129,16 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
     }
   };
 
-  const filteredOrders = orders.filter(o => 
-    filter === "all" ? true : o.type === filter
-  );
+  const filteredOrders = orders.filter(o => {
+    if (filter === "blocked") return false; // Handled separately
+    if (filter === "history") return o.status === "completed" || o.status === "cancelled";
+    
+    // For other filters, we only show active orders by default
+    const isActive = o.status !== "completed" && o.status !== "cancelled";
+    
+    if (filter === "active") return isActive;
+    return o.type === filter && isActive;
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -232,10 +239,10 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
         </div>
         <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
           <button 
-            onClick={() => setFilter("all")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all", filter === "all" ? "bg-red-600 text-white" : "text-gray-600")}
+            onClick={() => setFilter("active")}
+            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all", filter === "active" ? "bg-red-600 text-white" : "text-gray-600")}
           >
-            الكل
+            النشطة
           </button>
           <button 
             onClick={() => setFilter("dine-in")}
@@ -250,6 +257,13 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
           >
             <MapPin className="w-4 h-4" />
             توصيل
+          </button>
+          <button 
+            onClick={() => setFilter("history")}
+            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2", filter === "history" ? "bg-red-600 text-white" : "text-gray-600")}
+          >
+            <ClipboardList className="w-4 h-4" />
+            الأرشيف
           </button>
           <button 
             onClick={() => setFilter("blocked")}
@@ -448,6 +462,13 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
                                 <p className="font-bold text-gray-900">{selectedOrder.customerIp || 'غير متاح'}</p>
                               </div>
                             </div>
+                          </div>
+                        )}
+
+                        {selectedOrder.notes && (
+                          <div className="bg-yellow-50 border border-yellow-100 rounded-2xl p-4">
+                            <h4 className="text-xs font-bold text-yellow-700 uppercase tracking-wider mb-1">ملاحظات الزبون</h4>
+                            <p className="text-sm text-yellow-900 font-medium">{selectedOrder.notes}</p>
                           </div>
                         )}
 
