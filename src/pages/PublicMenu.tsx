@@ -35,6 +35,7 @@ export default function PublicMenu() {
   const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
   const [totalUnread, setTotalUnread] = useState(0);
   const [selectedChatOrderId, setSelectedChatOrderId] = useState<string | null>(null);
+  const [addingItemId, setAddingItemId] = useState<string | null>(null);
 
   // Delivery info
   const [customerName, setCustomerName] = useState("");
@@ -48,9 +49,14 @@ export default function PublicMenu() {
   const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [alertModal, setAlertModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: "" });
+  const [confirmModal, setConfirmModal] = useState<{show: boolean, message: string, onConfirm: () => void}>({ show: false, message: "", onConfirm: () => {} });
 
   const showAlert = (message: string, title: string = "تنبيه") => {
     setAlertModal({ show: true, message, title });
+  };
+
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmModal({ show: true, message, onConfirm });
   };
 
   useEffect(() => {
@@ -179,6 +185,9 @@ export default function PublicMenu() {
   }, [slug]);
 
   const addToCart = (item: MenuItem) => {
+    if (addingItemId) return;
+    setAddingItemId(item.id);
+    
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       const priceToUse = item.discountPrice || item.price;
@@ -187,6 +196,10 @@ export default function PublicMenu() {
       }
       return [...prev, { id: item.id, name: item.name, price: priceToUse, quantity: 1 }];
     });
+
+    setTimeout(() => {
+      setAddingItemId(null);
+    }, 600);
   };
 
   const removeFromCart = (itemId: string) => {
@@ -352,14 +365,59 @@ export default function PublicMenu() {
         .bg-theme-light { background-color: var(--theme-color-light) !important; }
       `}</style>
       
+      {/* Hero Section (Desktop) */}
+      <div className="hidden md:block relative h-[400px] w-full overflow-hidden mb-12">
+        <div className="absolute inset-0">
+          <img 
+            src={restaurant.logo || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80"} 
+            className="w-full h-full object-cover blur-sm brightness-50 scale-105"
+            alt="Hero Background"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-gray-50" />
+        <div className="relative max-w-5xl mx-auto h-full flex flex-col items-center justify-center text-center px-4">
+          {restaurant.logo && (
+            <motion.img 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              src={restaurant.logo} 
+              className="w-32 h-32 rounded-full border-4 border-white shadow-2xl mb-6 object-cover"
+              alt={restaurant.name}
+              referrerPolicy="no-referrer"
+            />
+          )}
+          <motion.h1 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="text-5xl font-black text-white mb-4 drop-shadow-lg"
+          >
+            {restaurant.name}
+          </motion.h1>
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="flex items-center gap-6 text-white/90 font-medium"
+          >
+            {restaurant.address && <span className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-4 py-2 rounded-full"><MapPin className="w-4 h-4 text-theme" /> {restaurant.address}</span>}
+            {restaurant.whatsappNumber && <span className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-4 py-2 rounded-full"><Phone className="w-4 h-4 text-theme" /> {restaurant.whatsappNumber}</span>}
+          </motion.div>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="bg-white shadow-sm sticky top-0 z-30">
+      <div className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {restaurant.logo && <img src={restaurant.logo} alt={restaurant.name} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover shadow-sm" referrerPolicy="no-referrer" />}
+            {restaurant.logo && <img src={restaurant.logo} alt={restaurant.name} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover shadow-sm md:hidden" referrerPolicy="no-referrer" />}
             <div>
-              <h1 className="font-bold text-lg md:text-xl text-gray-900 leading-none">{restaurant.name}</h1>
-              {restaurant.address && <p className="text-[10px] md:text-xs text-gray-500 mt-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> {restaurant.address}</p>}
+              <h1 className="font-bold text-lg md:text-xl text-gray-900 leading-none md:hidden">{restaurant.name}</h1>
+              <div className="hidden md:flex items-center gap-2">
+                <Utensils className="w-6 h-6 text-theme" />
+                <span className="text-xl font-black text-gray-900">قائمة الطعام</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
@@ -547,11 +605,20 @@ export default function PublicMenu() {
                     
                     <button 
                       onClick={() => addToCart(item)}
-                      disabled={!item.isAvailable}
+                      disabled={!item.isAvailable || addingItemId === item.id}
                       className="w-full bg-gray-900 text-white py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-theme active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-gray-200 hover:shadow-theme/30"
                     >
-                      <Plus className="w-4 h-4" />
-                      إضافة للسلة
+                      {addingItemId === item.id ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          يرجى الانتظار...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4" />
+                          إضافة للسلة
+                        </>
+                      )}
                     </button>
                   </div>
                 </motion.div>
@@ -648,7 +715,7 @@ export default function PublicMenu() {
                 <div className="flex gap-2">
                   <button 
                     onClick={() => {
-                      if (confirm("هل تريد إفراغ السلة؟")) setCart([]);
+                      showConfirm("هل تريد إفراغ السلة؟", () => setCart([]));
                     }} 
                     className="p-3 bg-red-50 rounded-2xl text-red-600 hover:bg-red-100 transition-colors"
                   >
@@ -855,6 +922,48 @@ export default function PublicMenu() {
         )}
       </AnimatePresence>
 
+      {/* Confirm Modal */}
+      <AnimatePresence>
+        {confirmModal.show && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-sm rounded-[2rem] p-8 text-center shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">تأكيد العملية</h3>
+              <p className="text-gray-500 mb-8 leading-relaxed">{confirmModal.message}</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    confirmModal.onConfirm();
+                    setConfirmModal({ ...confirmModal, show: false });
+                  }}
+                  className="flex-1 bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-all shadow-lg"
+                >
+                  تأكيد
+                </button>
+                <button 
+                  onClick={() => setConfirmModal({ ...confirmModal, show: false })}
+                  className="flex-1 bg-gray-100 text-gray-500 font-bold py-4 rounded-2xl hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chat Modal */}
       <AnimatePresence>
         {selectedChatOrderId && (
@@ -905,47 +1014,43 @@ export default function PublicMenu() {
 
       {/* Footer */}
       <footer className="max-w-5xl mx-auto px-4 py-16 text-center border-t border-gray-100 mt-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start text-right mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start text-right mb-12">
           <div className="flex flex-col items-center md:items-start">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-theme rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-theme/20">ز</div>
-              <span className="text-2xl font-black text-gray-900">زانتكس</span>
-            </div>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs text-center md:text-right">
-              نظام زانتكس المتطور لإدارة المطاعم والطلبات الذكية في العراق.
-            </p>
-          </div>
-          
-          <div className="flex flex-col items-center md:items-start">
-            <h4 className="font-bold text-gray-900 mb-4">معلومات المطعم</h4>
-            <div className="space-y-3 text-sm text-gray-500">
-              <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-theme" /> {restaurant.address || "العنوان غير متوفر"}</p>
-              <p className="flex items-center gap-2"><Phone className="w-4 h-4 text-theme" /> {restaurant.whatsappNumber || "رقم الهاتف غير متوفر"}</p>
-              <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-theme" /> متوفر الآن للطلبات</p>
+            <h4 className="font-bold text-gray-900 mb-4 text-xl">معلومات المطعم</h4>
+            <div className="space-y-4 text-base text-gray-500">
+              <p className="flex items-center gap-3"><MapPin className="w-5 h-5 text-theme" /> {restaurant.address || "العنوان غير متوفر"}</p>
+              <p className="flex items-center gap-3"><Phone className="w-5 h-5 text-theme" /> {restaurant.whatsappNumber || "رقم الهاتف غير متوفر"}</p>
+              <p className="flex items-center gap-3"><Clock className="w-5 h-5 text-theme" /> متوفر الآن لاستقبال طلباتكم</p>
             </div>
           </div>
 
           <div className="flex flex-col items-center md:items-start">
-            <h4 className="font-bold text-gray-900 mb-4">تواصل معنا</h4>
+            <h4 className="font-bold text-gray-900 mb-4 text-xl">تواصل معنا</h4>
+            <p className="text-gray-400 mb-6 text-sm">نحن هنا لخدمتكم، لا تتردد في التواصل معنا لأي استفسار.</p>
             <div className="flex gap-4">
               {restaurant.whatsappNumber && (
-                <a href={`https://wa.me/${restaurant.whatsappNumber}`} className="w-10 h-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center hover:bg-green-600 hover:text-white transition-all">
+                <a 
+                  href={`https://wa.me/${restaurant.whatsappNumber}`} 
+                  target="_blank"
+                  className="bg-green-500 text-white px-8 py-3 rounded-2xl font-bold flex items-center gap-3 hover:bg-green-600 transition-all shadow-lg shadow-green-100"
+                >
                   <MessageCircle className="w-5 h-5" />
+                  راسلنا عبر واتساب
                 </a>
               )}
-              <a href="#" className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all">
+              <a 
+                href={`tel:${restaurant.whatsappNumber}`} 
+                className="bg-theme text-white px-8 py-3 rounded-2xl font-bold flex items-center gap-3 hover:opacity-90 transition-all shadow-lg shadow-theme/20"
+              >
                 <Phone className="w-5 h-5" />
+                اتصل بنا
               </a>
             </div>
           </div>
         </div>
 
-        <div className="pt-8 border-t border-gray-50 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-gray-400 text-xs">© 2024 زانتكس للمطاعم. جميع الحقوق محفوظة.</p>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-[10px]">تطوير وبرمجة:</span>
-            <span className="text-theme text-xs font-black">حسين علي الجبوري</span>
-          </div>
+        <div className="pt-8 border-t border-gray-50 flex flex-col items-center justify-center gap-4">
+          <p className="text-gray-400 text-sm font-medium">جميع الحقوق محفوظة © {new Date().getFullYear()} {restaurant.name}</p>
         </div>
       </footer>
     </div>
