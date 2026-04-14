@@ -21,6 +21,7 @@ export default function RestaurantManagement() {
       setRestaurants(data);
     } catch (e) {
       console.error(e);
+      alert("فشل تحميل المطاعم");
     } finally {
       setLoading(false);
     }
@@ -37,6 +38,7 @@ export default function RestaurantManagement() {
       alert("تم تحديث الاشتراك بنجاح");
     } catch (e) {
       console.error(e);
+      alert("حدث خطأ أثناء تحديث الاشتراك");
     }
   };
 
