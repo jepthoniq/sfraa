@@ -44,6 +44,10 @@ try {
   db.prepare("ALTER TABLE restaurants ADD COLUMN phone TEXT").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP").run();
+} catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -51,7 +55,8 @@ db.exec(`
     password TEXT,
     name TEXT,
     is_super_admin INTEGER DEFAULT 0,
-    dashboard_color TEXT DEFAULT '#dc2626'
+    dashboard_color TEXT DEFAULT '#dc2626',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS restaurants (
