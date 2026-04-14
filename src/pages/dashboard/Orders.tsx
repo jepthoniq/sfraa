@@ -86,31 +86,32 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
     return () => clearInterval(interval);
   }, [restaurantId]);
 
-  const updateStatus = async (orderId: string, status: string) => {
-    try {
-      await api.patch(`/api/orders/${orderId}/status`, { status });
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } as Order : o));
-      if (selectedOrder?.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status } as Order);
-      }
-    } catch (error) {
-      console.error("Error updating status:", error);
+const updateStatus = async (orderId: string, status: string) => {
+  try {
+    await api.patch(`/api/orders/${orderId}/status`, { status });
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } as Order : o));
+    if (selectedOrder?.id === orderId) {
+      setSelectedOrder({ ...selectedOrder, status } as Order);
     }
-  };
+  } catch (error) {
+    console.error("Error updating status:", error);
+    alert("حدث خطأ أثناء تحديث الحالة");
+  }
+};
 
-  const deleteOrder = async (orderId: string) => {
-    setIsDeleting(true);
-    try {
-      await api.delete(`/api/orders/${orderId}`);
-      setOrders(prev => prev.filter(o => o.id !== orderId));
-      setSelectedOrder(null);
-      setOrderToDelete(null);
-    } catch (error: any) {
-      alert(error.message || "حدث خطأ أثناء حذف الطلب");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+const deleteOrder = async (orderId: string) => {
+  setIsDeleting(true);
+  try {
+    await api.delete(`/api/orders/${orderId}`);
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    setSelectedOrder(null);
+    setOrderToDelete(null);
+  } catch (error: any) {
+    alert(error.message || "حدث خطأ أثناء حذف الطلب");
+  } finally {
+    setIsDeleting(false);
+  }
+};
 
   const toggleBlock = async (ip: string) => {
     if (!restaurantId || !ip) return;
