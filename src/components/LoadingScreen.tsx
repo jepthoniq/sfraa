@@ -84,7 +84,7 @@ export default function LoadingScreen({ logo, restaurantName }: LoadingScreenPro
           animate={{ opacity: 1 }}
           className="text-xl font-black text-gray-900 mb-4 tracking-tight"
         >
-          {restaurantName || "زانتكس للمطاعم"}
+          {restaurantName || "جارٍ التحميل..."}
         </motion.h2>
         
         <div className="flex gap-2 justify-center">

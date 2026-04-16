@@ -47,6 +47,16 @@ export default function Dashboard() {
 
     setUser(JSON.parse(userData));
 
+    // Load cached restaurant info for immediate loading screen display
+    const cachedRest = localStorage.getItem("cached_rest_me");
+    if (cachedRest) {
+      try {
+        setRestaurant(JSON.parse(cachedRest));
+      } catch (e) {
+        console.error("Error parsing cached dashboard rest:", e);
+      }
+    }
+
     const fetchRestaurant = async () => {
       const timeoutId = setTimeout(() => {
         setLoading(false);
@@ -55,6 +65,12 @@ export default function Dashboard() {
       try {
         const rest = await api.get("/api/restaurants/me");
         setRestaurant(rest);
+        // Cache basic info
+        localStorage.setItem("cached_rest_me", JSON.stringify({
+          id: rest.id,
+          name: rest.name,
+          logo: rest.logo
+        }));
       } catch (e: any) {
         console.error("Dashboard Fetch Error:", e);
         if (e.message.includes("انتهى اشتراكك")) {

@@ -156,10 +156,27 @@ export default function PublicMenu() {
   useEffect(() => {
     if (!slug) return;
 
+    // Load cached data for immediate display on loading screen
+    const cachedData = localStorage.getItem(`cached_rest_${slug}`);
+    if (cachedData) {
+      try {
+        setRestaurant(JSON.parse(cachedData));
+      } catch (e) {
+        console.error("Error parsing cached restaurant:", e);
+      }
+    }
+
     const fetchRestaurant = async () => {
       try {
         const restData = await api.get(`/api/restaurants/public/${slug}`);
         setRestaurant(restData);
+        // Cache basic info for next time
+        localStorage.setItem(`cached_rest_${slug}`, JSON.stringify({
+          id: restData.id,
+          name: restData.name,
+          logo: restData.logo,
+          themeColor: restData.themeColor
+        }));
         
         if (restData.isIpBlocked) {
           setIsBlocked(true);
