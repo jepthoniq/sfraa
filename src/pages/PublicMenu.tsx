@@ -633,7 +633,7 @@ export default function PublicMenu() {
                       ) : (
                         <>
                           <Plus className="w-4 h-4" />
-                          إضافة للسلة
+                          طلب
                         </>
                       )}
                     </button>
