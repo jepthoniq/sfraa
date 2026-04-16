@@ -60,6 +60,10 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        showAlert("حجم الصورة كبير جداً. يرجى اختيار صورة أقل من 2 ميجابايت.");
+        return;
+      }
       try {
         const base64 = await fileToBase64(file);
         setFormData({ ...formData, logo: base64 });

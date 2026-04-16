@@ -304,7 +304,7 @@ export default function PublicMenu() {
   };
 
   if (loading) {
-    return <LoadingScreen />;
+    return <LoadingScreen logo={restaurant?.logo} restaurantName={restaurant?.name} />;
   }
 
   if (isBlocked) {

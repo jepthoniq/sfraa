@@ -48,12 +48,20 @@ export default function Dashboard() {
     setUser(JSON.parse(userData));
 
     const fetchRestaurant = async () => {
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+      }, 10000); // 10 seconds timeout safety
+
       try {
         const rest = await api.get("/api/restaurants/me");
         setRestaurant(rest);
-      } catch (e) {
-        console.error(e);
+      } catch (e: any) {
+        console.error("Dashboard Fetch Error:", e);
+        if (e.message.includes("انتهى اشتراكك")) {
+          // Handle expired subscription if needed, but for now just let it load
+        }
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     };
@@ -65,10 +73,13 @@ export default function Dashboard() {
     if (!restaurant) return;
 
     const checkNewOrders = async () => {
+      if (!restaurant?.id) return;
       try {
         const orders = await api.get(`/api/restaurants/${restaurant.id}/orders`);
-        const pendingCount = orders.filter((o: any) => o.status === "pending").length;
-        setNewOrdersCount(pendingCount);
+        if (Array.isArray(orders)) {
+          const pendingCount = orders.filter((o: any) => o.status === "pending").length;
+          setNewOrdersCount(pendingCount);
+        }
       } catch (e) {
         console.error("Error checking new orders:", e);
       }
@@ -97,7 +108,7 @@ export default function Dashboard() {
     navItems.push({ name: "الإدارة العليا", icon: ShieldCheck, path: "/super-admin" });
   }
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen logo={restaurant?.logo} restaurantName={restaurant?.name} />;
 
   const dashboardColor = user?.dashboardColor || "#dc2626";
 

@@ -103,40 +103,45 @@ async function startServer() {
 
   // --- Restaurant Routes ---
   app.get("/api/restaurants/me", authenticate, (req: any, res) => {
-    const restaurant = db.prepare("SELECT * FROM restaurants WHERE owner_id = ?").get(req.user.id) as any;
-    if (!restaurant) {
-      // Create default restaurant for new user
-      const id = uuidv4();
-      const slug = `rest-${req.user.id.slice(0, 5)}`;
-      db.prepare("INSERT INTO restaurants (id, owner_id, name, slug) VALUES (?, ?, ?, ?)").run(id, req.user.id, `${req.user.name}'s Restaurant`, slug);
-      const newRest = db.prepare("SELECT * FROM restaurants WHERE id = ?").get(id) as any;
-      return res.json({
-        ...newRest,
-        ownerId: newRest.owner_id,
-        minOrder: newRest.min_order,
-        isDeliveryEnabled: !!newRest.is_delivery_enabled,
-        whatsappNumber: newRest.whatsapp_number,
-        themeColor: newRest.theme_color,
-        subscriptionStatus: newRest.subscription_status,
-        subscriptionStartedAt: newRest.subscription_started_at,
-        subscriptionExpiresAt: newRest.subscription_expires_at,
-        address: newRest.address,
-        phone: newRest.phone
+    try {
+      const restaurant = db.prepare("SELECT * FROM restaurants WHERE owner_id = ?").get(req.user.id) as any;
+      if (!restaurant) {
+        // Create default restaurant for new user
+        const id = uuidv4();
+        const slug = `rest-${req.user.id.slice(0, 5)}`;
+        db.prepare("INSERT INTO restaurants (id, owner_id, name, slug) VALUES (?, ?, ?, ?)").run(id, req.user.id, `${req.user.name}'s Restaurant`, slug);
+        const newRest = db.prepare("SELECT * FROM restaurants WHERE id = ?").get(id) as any;
+        return res.json({
+          ...newRest,
+          ownerId: newRest.owner_id,
+          minOrder: newRest.min_order,
+          isDeliveryEnabled: !!newRest.is_delivery_enabled,
+          whatsappNumber: newRest.whatsapp_number,
+          themeColor: newRest.theme_color,
+          subscriptionStatus: newRest.subscription_status,
+          subscriptionStartedAt: newRest.subscription_started_at,
+          subscriptionExpiresAt: newRest.subscription_expires_at,
+          address: newRest.address,
+          phone: newRest.phone
+        });
+      }
+      res.json({
+        ...restaurant,
+        ownerId: restaurant.owner_id,
+        minOrder: restaurant.min_order,
+        isDeliveryEnabled: !!restaurant.is_delivery_enabled,
+        whatsappNumber: restaurant.whatsapp_number,
+        themeColor: restaurant.theme_color,
+        subscriptionStatus: restaurant.subscription_status,
+        subscriptionStartedAt: restaurant.subscription_started_at,
+        subscriptionExpiresAt: restaurant.subscription_expires_at,
+        address: restaurant.address,
+        phone: restaurant.phone
       });
+    } catch (error) {
+      console.error("Get Restaurant Error:", error);
+      res.status(500).json({ error: "Internal Server Error" });
     }
-    res.json({
-      ...restaurant,
-      ownerId: restaurant.owner_id,
-      minOrder: restaurant.min_order,
-      isDeliveryEnabled: !!restaurant.is_delivery_enabled,
-      whatsappNumber: restaurant.whatsapp_number,
-      themeColor: restaurant.theme_color,
-      subscriptionStatus: restaurant.subscription_status,
-      subscriptionStartedAt: restaurant.subscription_started_at,
-      subscriptionExpiresAt: restaurant.subscription_expires_at,
-      address: restaurant.address,
-      phone: restaurant.phone
-    });
   });
 
   app.get("/api/restaurants/public/:slug", (req, res) => {
@@ -167,13 +172,31 @@ async function startServer() {
   });
 
   app.put("/api/restaurants/me", authenticate, (req: any, res) => {
-    const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber } = req.body;
-    db.prepare(`
-      UPDATE restaurants 
-      SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?
-      WHERE owner_id = ?
-    `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, req.user.id);
-    res.json({ success: true });
+    try {
+      const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber, address, phone, themeColor, dashboardColor } = req.body;
+      
+      // Check if slug is taken by another restaurant
+      const existing = db.prepare("SELECT id FROM restaurants WHERE slug = ? AND owner_id != ?").get(slug, req.user.id);
+      if (existing) {
+        return res.status(400).json({ error: "هذا الرابط مستخدم بالفعل، يرجى اختيار رابط آخر." });
+      }
+
+      db.prepare(`
+        UPDATE restaurants 
+        SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, address = ?, phone = ?, theme_color = ?
+        WHERE owner_id = ?
+      `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, address, phone, themeColor, req.user.id);
+
+      // Update dashboard color in users table
+      if (dashboardColor) {
+        db.prepare("UPDATE users SET dashboard_color = ? WHERE id = ?").run(dashboardColor, req.user.id);
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Update Restaurant Error:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء تحديث البيانات." });
+    }
   });
 
   // --- Categories ---
