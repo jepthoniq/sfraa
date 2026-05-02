@@ -4,9 +4,10 @@ import { api } from "../lib/api";
 import { Restaurant, MenuCategory, MenuItem, DeliveryZone, OrderItem } from "../types";
 import { formatCurrency, cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban, Ticket } from "lucide-react";
+import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban, Ticket, Bell, Megaphone } from "lucide-react";
 import Chat from "../components/Chat";
 import LoadingScreen from "../components/LoadingScreen";
+import { io } from "socket.io-client";
 
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
@@ -57,6 +58,7 @@ export default function PublicMenu() {
   const [isPhoneVerified, setIsPhoneVerified] = useState(localStorage.getItem(`verified_${customerPhone}`) === "true");
   const [alertModal, setAlertModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: "" });
   const [confirmModal, setConfirmModal] = useState<{show: boolean, message: string, onConfirm: () => void}>({ show: false, message: "", onConfirm: () => {} });
+  const [couponAlert, setCouponAlert] = useState<{code: string, discountPercentage: number} | null>(null);
 
   const showAlert = (message: string, title: string = "تنبيه") => {
     setAlertModal({ show: true, message, title });
@@ -206,7 +208,18 @@ export default function PublicMenu() {
     };
 
     fetchRestaurant();
-  }, [slug]);
+
+    // Socket.io for Real-time Coupon Alerts
+    const socket = io(window.location.origin);
+    
+    socket.on(`coupon-alert-${restaurant?.id || slug}`, (data) => {
+      setCouponAlert(data);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [slug, restaurant?.id]);
 
   const addToCart = (item: MenuItem) => {
     if (addingItemId) return;
@@ -454,6 +467,51 @@ export default function PublicMenu() {
         .bg-theme-light { background-color: var(--theme-color-light) !important; }
       `}</style>
       
+      {/* Coupon Alert Modal */}
+      <AnimatePresence>
+        {couponAlert && (
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm text-center relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 left-0 h-2 bg-theme" />
+              <div className="w-20 h-20 bg-theme-light text-theme rounded-full flex items-center justify-center mx-auto mb-6">
+                <Megaphone className="w-10 h-10 animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-black text-gray-900 mb-2">عرض خاص جديد!</h2>
+              <p className="text-gray-500 mb-6 font-medium leading-relaxed">
+                قام المطعم للتو بتوفير كود خصم جديد بنسبة <span className="text-theme font-black">{couponAlert.discountPercentage}%</span>
+              </p>
+              <div className="bg-gray-100 p-4 rounded-2xl mb-8 flex flex-col items-center justify-center gap-2">
+                <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">كود الخصم</span>
+                <span className="text-3xl font-black text-gray-900 tracking-[0.2em] font-mono">{couponAlert.code}</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => {
+                    setCouponInput(couponAlert.code);
+                    setCouponAlert(null);
+                    setIsCartOpen(true);
+                  }}
+                  className="w-full bg-theme text-white font-bold py-4 rounded-2xl shadow-lg shadow-theme/30 hover:scale-[1.02] transition-all"
+                >
+                  استخدام الكود الآن
+                </button>
+                <button 
+                  onClick={() => setCouponAlert(null)}
+                  className="w-full text-gray-400 font-bold py-2 hover:text-gray-600 transition-colors"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Hero Section (Desktop) */}
       <div className="hidden md:block relative h-[400px] w-full overflow-hidden mb-12">
         <div className="absolute inset-0">

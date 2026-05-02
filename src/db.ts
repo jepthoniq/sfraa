@@ -69,6 +69,10 @@ try {
   db.prepare("ALTER TABLE users ADD COLUMN phone_verified INTEGER DEFAULT 0").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'manager'").run();
+} catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS coupons (
     id TEXT PRIMARY KEY,
@@ -98,6 +102,7 @@ db.exec(`
     password TEXT,
     name TEXT,
     is_super_admin INTEGER DEFAULT 0,
+    role TEXT DEFAULT 'manager',
     dashboard_color TEXT DEFAULT '#dc2626',
     verification_code TEXT,
     phone_verified INTEGER DEFAULT 0

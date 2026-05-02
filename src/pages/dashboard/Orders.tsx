@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api } from "../../lib/api";
 import { Order } from "../../types";
 import { formatCurrency, cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { io } from "socket.io-client";
 import { 
   Phone, 
   MessageCircle, 
@@ -18,7 +19,9 @@ import {
   ClipboardList,
   Trash2,
   Ban,
-  ShieldCheck
+  ShieldCheck,
+  Bell,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -33,44 +36,37 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
   const [showChat, setShowChat] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [blockedIPs, setBlockedIPs] = useState<string[]>([]);
+  
+  // Real-time Notifications State
+  const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!restaurantId) return;
-    const fetchBlocked = async () => {
-      try {
-        const data = await api.get(`/api/restaurants/${restaurantId}/blocked-ips`);
-        setBlockedIPs(data.map((b: any) => b.ip));
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchBlocked();
-  }, [restaurantId]);
 
-  useEffect(() => {
-    const checkUnread = async () => {
-      const counts: Record<string, number> = {};
-      for (const order of orders) {
-        try {
-          const msgs = await api.get(`/api/orders/${order.id}/messages`);
-          const lastRead = localStorage.getItem(`sufra_admin_last_read_${order.id}`) || "0";
-          const unread = msgs.filter((m: any) => m.sender === 'customer' && new Date(m.createdAt).getTime() > parseInt(lastRead)).length;
-          counts[order.id] = unread;
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      setUnreadCounts(counts);
-    };
-    if (orders.length > 0) {
-      checkUnread();
-      const interval = setInterval(checkUnread, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [orders]);
+    // Socket.io Setup
+    const socket = io(window.location.origin);
+    
+    socket.emit("join-restaurant", restaurantId);
 
-  useEffect(() => {
-    if (!restaurantId) return;
+    socket.on("new-order", (order) => {
+      // Play Sound
+      if (audioRef.current) {
+        audioRef.current.play().catch(e => console.log("Sound play error:", e));
+      }
+      
+      // Update List
+      setOrders(prev => [
+        { ...order, items: [], status: 'pending', createdAt: new Date(order.createdAt) } as any,
+        ...prev
+      ]);
+
+      // Show Notification
+      setNewOrderNotification(order);
+      
+      // Auto-fetch to get full details
+      fetchOrders();
+    });
 
     const fetchOrders = async () => {
       try {
@@ -82,8 +78,10 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
     };
 
     fetchOrders();
-    const interval = setInterval(fetchOrders, 10000); // Poll every 10s
-    return () => clearInterval(interval);
+    
+    return () => {
+      socket.disconnect();
+    };
   }, [restaurantId]);
 
   const updateStatus = async (orderId: string, status: string) => {
@@ -232,6 +230,39 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
 
   return (
     <div className="space-y-6">
+      {/* Audio for notifications */}
+      <audio ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" />
+
+      {/* New Order Notification Overlay */}
+      <AnimatePresence>
+        {newOrderNotification && (
+          <motion.div 
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-full max-w-sm"
+          >
+            <div className="bg-gray-900 text-white p-4 rounded-3xl shadow-2xl border border-gray-800 flex items-center gap-4">
+              <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center animate-bounce">
+                <Bell className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <p className="font-black text-red-500 text-xs mb-1">طلب جديد وصل!</p>
+                <p className="font-bold text-sm">
+                  {newOrderNotification.type === 'delivery' ? `توصيل لـ ${newOrderNotification.customerName}` : `طاولة رقم ${newOrderNotification.tableNumber}`}
+                </p>
+                <p className="text-[10px] text-gray-400">{formatCurrency(newOrderNotification.total)}</p>
+              </div>
+              <button 
+                onClick={() => setNewOrderNotification(null)}
+                className="p-2 hover:bg-gray-800 rounded-xl transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">الطلبات الحالية</h1>

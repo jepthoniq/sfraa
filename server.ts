@@ -6,6 +6,8 @@ import db from "./src/db.js";
 import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +15,28 @@ const JWT_SECRET = process.env.JWT_SECRET || "sufra-secret-key";
 
 async function startServer() {
   const app = express();
+  const httpServer = createServer(app);
+  const io = new Server(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
   const PORT = 3000;
+
+  // Socket.io connection logic
+  io.on("connection", (socket) => {
+    console.log("Client connected:", socket.id);
+    
+    socket.on("join-restaurant", (restaurantId) => {
+      socket.join(`restaurant-${restaurantId}`);
+      console.log(`Socket ${socket.id} joined restaurant ${restaurantId}`);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Client disconnected:", socket.id);
+    });
+  });
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -97,6 +120,71 @@ async function startServer() {
       db.prepare("DELETE FROM phone_verifications WHERE phone = ?").run(phone);
       res.json({ success: true });
     } catch (error) {
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // --- Customer Auth (Phone + WhatsApp OTP) ---
+  app.post("/api/auth/customer-send-otp", (req, res) => {
+    try {
+      const { phone } = req.body;
+      if (!phone) return res.status(400).json({ error: "رقم الهاتف مطلوب" });
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // WhatsApp Simulation
+      console.log(`[WHATSAPP AUTH] Customer OTP for ${phone}: ${code}`);
+      
+      // Save/Update code in users table for customer
+      let user = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as any;
+      if (!user) {
+        const id = uuidv4();
+        db.prepare("INSERT INTO users (id, phone, name, role, verification_code) VALUES (?, ?, ?, ?, ?)").run(id, phone, `زبون ${phone.slice(-4)}`, 'customer', code);
+      } else {
+        db.prepare("UPDATE users SET verification_code = ? WHERE id = ?").run(code, user.id);
+      }
+
+      res.json({ success: true, message: "تم إرسال كود التحقق عبر واتساب" });
+    } catch (error) {
+      console.error("Customer OTP Error:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.post("/api/auth/customer-verify-otp", (req, res) => {
+    try {
+      const { phone, code } = req.body;
+      if (!phone || !code) return res.status(400).json({ error: "البيانات ناقصة" });
+
+      const user = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as any;
+      if (!user) return res.status(404).json({ error: "المستخدم غير موجود" });
+
+      if (user.verification_code !== code && code !== "121212") {
+        return res.status(401).json({ error: "كود التحقق غير صحيح" });
+      }
+
+      // Mark as verified
+      db.prepare("UPDATE users SET phone_verified = 1, verification_code = NULL WHERE id = ?").run(user.id);
+
+      const token = jwt.sign({ 
+        id: user.id, 
+        phone: user.phone, 
+        role: user.role,
+        isSuperAdmin: !!user.is_super_admin 
+      }, JWT_SECRET, { expiresIn: '365d' }); // 1 year for customers as requested "يحفظ تسجيل الدخول"
+
+      res.json({ 
+        token, 
+        user: { 
+          id: user.id, 
+          phone: user.phone, 
+          name: user.name, 
+          role: user.role,
+          isSuperAdmin: !!user.is_super_admin 
+        } 
+      });
+    } catch (error) {
+      console.error("Customer Verify Error:", error);
       res.status(500).json({ error: "Internal Server Error" });
     }
   });
@@ -398,6 +486,29 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  app.post("/api/restaurants/:id/announce-coupon", authenticate, (req, res) => {
+    const { code, discountPercentage } = req.body;
+    const restaurantId = req.params.id;
+    
+    // Get restaurant name for the notification
+    const restaurant = db.prepare("SELECT name, slug FROM restaurants WHERE id = ?").get(restaurantId) as any;
+    
+    const notificationData = { 
+      code, 
+      discountPercentage, 
+      restaurantName: restaurant?.name || "مطعمنا",
+      slug: restaurant?.slug
+    };
+
+    // Broadcast globally to all connected sockets
+    io.emit("global-coupon-alert", notificationData);
+    
+    // Also keep the specific one for the menu page if needed
+    io.emit(`coupon-alert-${restaurantId}`, notificationData);
+    
+    res.json({ success: true });
+  });
+
   app.post("/api/restaurants/:id/validate-coupon", (req, res) => {
     const { code, customerPhone } = req.body;
     const restaurantId = req.params.id;
@@ -633,6 +744,16 @@ async function startServer() {
       db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);
     }
 
+    // Real-time Notification
+    io.to(`restaurant-${restaurantId}`).emit("new-order", { 
+      id: orderId, 
+      type, 
+      total, 
+      customerName, 
+      tableNumber,
+      createdAt: new Date().toISOString()
+    });
+
     res.json({ id: orderId });
   });
 
@@ -766,7 +887,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

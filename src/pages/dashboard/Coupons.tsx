@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../../lib/api";
 import { Coupon } from "../../types";
-import { Ticket, Plus, Trash2, Calendar, Users, Percent, CheckCircle2, XCircle } from "lucide-react";
+import { Ticket, Plus, Trash2, Calendar, Users, Percent, CheckCircle2, XCircle, Megaphone } from "lucide-react";
 
 export default function Coupons({ restaurantId }: { restaurantId?: string }) {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -86,6 +86,19 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
       fetchCoupons();
     } catch (error) {
       console.error("Error deleting coupon:", error);
+    }
+  };
+
+  const announceCoupon = async (coupon: Coupon) => {
+    if (!restaurantId) return;
+    try {
+      await api.post(`/api/restaurants/${restaurantId}/announce-coupon`, {
+        code: coupon.code,
+        discountPercentage: coupon.discountPercentage
+      });
+      alert(`تم إرسال إشعار للزبائن بخصم ${coupon.discountPercentage}%`);
+    } catch (error) {
+      console.error("Error announcing coupon:", error);
     }
   };
 
@@ -229,12 +242,24 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
                           </div>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => deleteCoupon(coupon.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {coupon.isActive && (
+                          <button 
+                            onClick={() => announceCoupon(coupon)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-1 text-[10px] font-bold"
+                            title="إرسال إشعار للزبائن"
+                          >
+                            <Megaphone className="w-4 h-4" />
+                            إشعار الزبائن
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => deleteCoupon(coupon.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-gray-50">
