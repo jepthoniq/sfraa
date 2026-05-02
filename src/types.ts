@@ -39,6 +39,17 @@ export interface DeliveryZone {
   fee: number;
 }
 
+export interface Coupon {
+  id: string;
+  code: string;
+  discountPercentage: number;
+  expiryDate?: string;
+  usageLimit?: number;
+  usageCount: number;
+  isActive: boolean;
+  isFirstOrderOnly: boolean;
+}
+
 export interface Order {
   id: string;
   restaurantId: string;
@@ -48,6 +59,8 @@ export interface Order {
   subtotal: number;
   deliveryFee: number;
   total: number;
+  couponCode?: string;
+  discountAmount?: number;
   customerName?: string;
   customerPhone?: string;
   customerAddress?: string;

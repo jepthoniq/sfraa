@@ -26,6 +26,8 @@ import MenuManagement from "./dashboard/MenuManagement";
 import Zones from "./dashboard/Zones";
 import Analytics from "./dashboard/Analytics";
 import DashboardSettings from "./dashboard/Settings";
+import Coupons from "./dashboard/Coupons";
+import { Ticket } from "lucide-react";
 
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
@@ -116,6 +118,7 @@ export default function Dashboard() {
     { name: "الطلبات", icon: ClipboardList, path: "/dashboard" },
     { name: "إدارة المنيو", icon: UtensilsCrossed, path: "/dashboard/menu" },
     { name: "مناطق التوصيل", icon: MapPin, path: "/dashboard/zones" },
+    { name: "نظام الخصومات", icon: Ticket, path: "/dashboard/coupons" },
     { name: "الإحصائيات", icon: BarChart3, path: "/dashboard/analytics" },
     { name: "الإعدادات", icon: Settings, path: "/dashboard/settings" },
   ];
@@ -304,6 +307,7 @@ export default function Dashboard() {
               <Route index element={<Orders restaurantId={restaurant?.id} />} />
               <Route path="menu" element={<MenuManagement restaurantId={restaurant?.id} />} />
               <Route path="zones" element={<Zones restaurantId={restaurant?.id} />} />
+              <Route path="coupons" element={<Coupons restaurantId={restaurant?.id} />} />
               <Route path="analytics" element={<Analytics restaurantId={restaurant?.id} />} />
               <Route path="settings" element={<DashboardSettings restaurant={restaurant} />} />
             </Routes>

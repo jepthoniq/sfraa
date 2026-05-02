@@ -49,7 +49,29 @@ try {
   db.prepare("ALTER TABLE restaurants ADD COLUMN phone TEXT").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE orders ADD COLUMN discount_amount REAL DEFAULT 0").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE orders ADD COLUMN coupon_code TEXT").run();
+} catch (e) {}
+
 db.exec(`
+  CREATE TABLE IF NOT EXISTS coupons (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    code TEXT,
+    discount_percentage REAL,
+    expiry_date DATETIME,
+    usage_limit INTEGER,
+    usage_count INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    is_first_order_only INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
+  );
+
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE,

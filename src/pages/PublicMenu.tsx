@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { Restaurant, MenuCategory, MenuItem, DeliveryZone, OrderItem } from "../types";
 import { formatCurrency, cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban } from "lucide-react";
+import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban, Ticket } from "lucide-react";
 import Chat from "../components/Chat";
 import LoadingScreen from "../components/LoadingScreen";
 
@@ -48,6 +48,9 @@ export default function PublicMenu() {
   const [showMap, setShowMap] = useState(false);
   const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{code: string, discountPercentage: number} | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [alertModal, setAlertModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: "" });
   const [confirmModal, setConfirmModal] = useState<{show: boolean, message: string, onConfirm: () => void}>({ show: false, message: "", onConfirm: () => {} });
 
@@ -253,9 +256,29 @@ export default function PublicMenu() {
     );
   };
 
+  const validateCoupon = async () => {
+    if (!restaurant || !couponInput) return;
+    
+    setIsValidatingCoupon(true);
+    try {
+      const result = await api.post(`/api/restaurants/${restaurant.id}/validate-coupon`, {
+        code: couponInput.toUpperCase().trim(),
+        customerPhone
+      });
+      setAppliedCoupon(result);
+      setCouponInput("");
+      showAlert("تم تطبيق كود الخصم بنجاح!", "رائع");
+    } catch (e: any) {
+      showAlert(e.message || "كود الخصم غير صحيح");
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discountAmount = appliedCoupon ? Math.floor(subtotal * (appliedCoupon.discountPercentage / 100)) : 0;
   const deliveryFee = orderType === "delivery" ? (selectedZone?.fee || 0) : 0;
-  const total = subtotal + deliveryFee;
+  const total = subtotal - discountAmount + deliveryFee;
 
   const handleCheckout = async (viaWhatsapp: boolean = false) => {
     if (!restaurant) return;
@@ -286,6 +309,8 @@ export default function PublicMenu() {
         googleMapsLink: orderType === "delivery" ? googleMapsLink : null,
         tableNumber: orderType === "dine-in" ? tableNumber : null,
         notes: orderNotes,
+        couponCode: appliedCoupon?.code,
+        discountAmount
       };
 
       const res = await api.post("/api/orders", orderData);
@@ -633,7 +658,7 @@ export default function PublicMenu() {
                       ) : (
                         <>
                           <Plus className="w-4 h-4" />
-                          طلب
+                          إضافة للسلة
                         </>
                       )}
                     </button>
@@ -866,12 +891,63 @@ export default function PublicMenu() {
                     </div>
                   </div>
 
+                  {/* Coupon Section */}
+                  <div className="mt-6 bg-gray-50 p-6 rounded-3xl border-2 border-dashed border-gray-200">
+                    <label className="block text-xs font-bold text-gray-400 mb-3 mr-1 uppercase tracking-wider">كود الخصم</label>
+                    {appliedCoupon ? (
+                      <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-2xl px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                            <Ticket className="w-4 h-4" />
+                          </div>
+                          <div>
+                             <p className="font-bold text-green-900 text-sm">تم تطبيق {appliedCoupon.code}</p>
+                             <p className="text-[10px] text-green-600 font-bold">خصم {appliedCoupon.discountPercentage}% على الطلب</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setAppliedCoupon(null)}
+                          className="text-xs font-bold text-red-500 hover:scale-110 transition-transform"
+                        >
+                          إلغاء
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="أدخل الكود هنا..." 
+                          className="flex-1 bg-white border-2 border-transparent focus:border-theme rounded-2xl py-3 px-6 outline-none transition-all font-mono uppercase text-sm"
+                          value={couponInput}
+                          onChange={(e) => setCouponInput(e.target.value)}
+                        />
+                        <button 
+                          onClick={validateCoupon}
+                          disabled={!couponInput || isValidatingCoupon}
+                          className="bg-theme text-white font-bold px-6 rounded-2xl hover:bg-theme/90 transition-all shadow-lg shadow-theme/10 disabled:opacity-50 disabled:grayscale"
+                        >
+                          {isValidatingCoupon ? (
+                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : "تطبيق"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Summary */}
                   <div className="mt-8 space-y-3 bg-gray-50 p-6 rounded-3xl">
                     <div className="flex justify-between text-sm text-gray-500">
                       <span>المجموع الفرعي</span>
                       <span className="font-bold">{formatCurrency(subtotal)}</span>
                     </div>
+                    {appliedCoupon && (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span className="font-medium inline-flex items-center gap-1">
+                          <Ticket className="w-3 h-3" /> خصم ({appliedCoupon.code})
+                        </span>
+                        <span className="font-bold italic">-{formatCurrency(discountAmount)}</span>
+                      </div>
+                    )}
                     {orderType === "delivery" && (
                       <div className="flex justify-between text-sm text-gray-500">
                         <span>أجور التوصيل</span>

@@ -283,6 +283,75 @@ async function startServer() {
   });
 
   // --- Orders ---
+  // --- Coupons ---
+  app.get("/api/restaurants/:id/coupons", authenticate, (req, res) => {
+    const coupons = db.prepare("SELECT * FROM coupons WHERE restaurant_id = ? ORDER BY created_at DESC").all(req.params.id);
+    res.json(coupons);
+  });
+
+  app.post("/api/restaurants/:id/coupons", authenticate, (req, res) => {
+    const { code, discountPercentage, expiryDate, usageLimit, isFirstOrderOnly } = req.body;
+    const id = uuidv4();
+    db.prepare(`
+      INSERT INTO coupons (id, restaurant_id, code, discount_percentage, expiry_date, usage_limit, is_first_order_only)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, req.params.id, code, discountPercentage, expiryDate, usageLimit, isFirstOrderOnly ? 1 : 0);
+    res.json({ id });
+  });
+
+  app.put("/api/coupons/:id", authenticate, (req, res) => {
+    const { code, discountPercentage, expiryDate, usageLimit, isFirstOrderOnly, isActive } = req.body;
+    db.prepare(`
+      UPDATE coupons 
+      SET code = ?, discount_percentage = ?, expiry_date = ?, usage_limit = ?, is_first_order_only = ?, is_active = ?
+      WHERE id = ?
+    `).run(code, discountPercentage, expiryDate, usageLimit, isFirstOrderOnly ? 1 : 0, isActive ? 1 : 0, req.params.id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/coupons/:id", authenticate, (req, res) => {
+    db.prepare("DELETE FROM coupons WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.post("/api/restaurants/:id/validate-coupon", (req, res) => {
+    const { code, customerPhone } = req.body;
+    const restaurantId = req.params.id;
+    
+    const coupon = db.prepare("SELECT * FROM coupons WHERE restaurant_id = ? AND code = ? AND is_active = 1").get(restaurantId, code) as any;
+    
+    if (!coupon) {
+      return res.status(404).json({ error: "كود الخصم غير صحيح أو غير مفعل" });
+    }
+
+    // Check expiry
+    if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) {
+      return res.status(400).json({ error: "لقد انتهت صلاحية كود الخصم" });
+    }
+
+    // Check usage limit
+    if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
+      return res.status(400).json({ error: "لقد تم استخدام كود الخصم كلياً" });
+    }
+
+    // Check first order only
+    if (coupon.is_first_order_only) {
+      if (!customerPhone) {
+        return res.status(400).json({ error: "يرجى إدخال رقم الهاتف للتحقق من أول طلب" });
+      }
+      const previousOrder = db.prepare("SELECT 1 FROM orders WHERE restaurant_id = ? AND customer_phone = ?").get(restaurantId, customerPhone);
+      if (previousOrder) {
+        return res.status(400).json({ error: "كود الخصم مخصص للطلب الأول فقط" });
+      }
+    }
+
+    res.json({
+      id: coupon.id,
+      code: coupon.code,
+      discountPercentage: coupon.discount_percentage
+    });
+  });
+
   app.get("/api/restaurants/:id/orders", authenticate, (req, res) => {
     const orders = db.prepare("SELECT * FROM orders WHERE restaurant_id = ? ORDER BY created_at DESC").all(req.params.id);
     const ordersWithItems = orders.map((o: any) => {
@@ -436,7 +505,7 @@ async function startServer() {
   });
 
   app.post("/api/orders", (req, res) => {
-    const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, notes } = req.body;
+    const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, notes, couponCode, discountAmount } = req.body;
     
     const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
 
@@ -459,9 +528,14 @@ async function startServer() {
     const orderId = uuidv4();
 
     db.prepare(`
-      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes);
+      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip, notes, coupon_code, discount_amount)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes, couponCode || null, discountAmount || 0);
+
+    // Update coupon usage if applicable
+    if (couponCode) {
+      db.prepare("UPDATE coupons SET usage_count = usage_count + 1 WHERE restaurant_id = ? AND code = ?").run(restaurantId, couponCode);
+    }
 
     for (const item of items) {
       db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);

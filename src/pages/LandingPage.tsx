@@ -17,8 +17,9 @@ import {
 export default function LandingPage() {
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = React.useState(false);
-  const [email, setEmail] = React.useState("admin@zantex.com");
-  const [password, setPassword] = React.useState("password");
+  const [email, setEmail] = React.useState(localStorage.getItem("remembered_email") || "");
+  const [password, setPassword] = React.useState(localStorage.getItem("remembered_password") || "");
+  const [rememberMe, setRememberMe] = React.useState(true);
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -29,6 +30,15 @@ export default function LandingPage() {
     setError(null);
     try {
       const { token, user } = await api.post("/api/auth/login", { email, password });
+      
+      if (rememberMe) {
+        localStorage.setItem("remembered_email", email);
+        localStorage.setItem("remembered_password", password);
+      } else {
+        localStorage.removeItem("remembered_email");
+        localStorage.removeItem("remembered_password");
+      }
+
       localStorage.setItem("sufra_token", token);
       localStorage.setItem("sufra_user", JSON.stringify(user));
       navigate("/dashboard");
@@ -104,6 +114,18 @@ export default function LandingPage() {
                     </button>
                   </div>
                 </div>
+
+                <div className="flex items-center gap-3 px-2">
+                  <input 
+                    type="checkbox" 
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-5 h-5 accent-red-600 rounded-lg cursor-pointer"
+                  />
+                  <label htmlFor="rememberMe" className="text-sm font-bold text-gray-600 cursor-pointer">تذكر بيانات الدخول</label>
+                </div>
+                
                 <button 
                   type="submit"
                   disabled={loading}
