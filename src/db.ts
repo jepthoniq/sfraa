@@ -73,6 +73,14 @@ try {
   db.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'manager'").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE restaurants ADD COLUMN whatsapp_instance_id TEXT").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE restaurants ADD COLUMN whatsapp_token TEXT").run();
+} catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS coupons (
     id TEXT PRIMARY KEY,

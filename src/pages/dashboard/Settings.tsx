@@ -37,6 +37,8 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
     logo: restaurant?.logo || "",
     address: restaurant?.address || "",
     phone: restaurant?.phone || "",
+    whatsappInstanceId: restaurant?.whatsappInstanceId || "",
+    whatsappToken: restaurant?.whatsappToken || "",
     themeColor: restaurant?.themeColor || "#dc2626",
     dashboardColor: JSON.parse(localStorage.getItem("sufra_user") || "{}").dashboardColor || "#dc2626"
   });
@@ -211,6 +213,28 @@ export default function DashboardSettings({ restaurant }: { restaurant: Restaura
                 onChange={(e) => setFormData({...formData, whatsappNumber: e.target.value})}
               />
               <p className="text-[10px] text-gray-400 mt-1">أدخل الرقم مع رمز الدولة بدون (+) ليتمكن الزبائن من إرسال طلباتهم عبر الواتساب.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Instance ID</label>
+                <input 
+                  type="text" 
+                  placeholder="مثلاً: 123456"
+                  className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500 font-mono text-sm"
+                  value={formData.whatsappInstanceId}
+                  onChange={(e) => setFormData({...formData, whatsappInstanceId: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Token</label>
+                <input 
+                  type="password" 
+                  placeholder="Token"
+                  className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500 font-mono text-sm"
+                  value={formData.whatsappToken}
+                  onChange={(e) => setFormData({...formData, whatsappToken: e.target.value})}
+                />
+              </div>
             </div>
             <div className="pt-4">
               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">

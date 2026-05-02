@@ -234,12 +234,22 @@ export default function PublicMenu() {
     
     socket.on(`coupon-alert-${restId}`, (data) => {
       setCouponAlert(data);
+      // Store in persistent notifications if user is logged in or even if not
+      const savedCoupons = JSON.parse(localStorage.getItem(`sufra_persistent_coupons_${restId}`) || "[]");
+      if (!savedCoupons.some((c: any) => c.code === data.code)) {
+        localStorage.setItem(`sufra_persistent_coupons_${restId}`, JSON.stringify([...savedCoupons, { ...data, timestamp: Date.now() }]));
+      }
     });
 
     socket.on("global-coupon-alert", (data) => {
       // Show if it's from current restaurant or just show general if relevant
       if (data.slug === slug || data.restaurantId === restaurant?.id) {
         setCouponAlert(data);
+        const rId = data.restaurantId || restaurant?.id;
+        const savedCoupons = JSON.parse(localStorage.getItem(`sufra_persistent_coupons_${rId}`) || "[]");
+        if (!savedCoupons.some((c: any) => c.code === data.code)) {
+          localStorage.setItem(`sufra_persistent_coupons_${rId}`, JSON.stringify([...savedCoupons, { ...data, timestamp: Date.now() }]));
+        }
       }
     });
 
@@ -368,10 +378,13 @@ export default function PublicMenu() {
   const total = Math.max(0, subtotal - discountAmount + deliveryFee);
 
   const handleSendOTP = async () => {
-    if (!customerPhone) return;
+    if (!customerPhone || !restaurant) return;
     setIsVerifyingOTP(true);
     try {
-      await api.post("/api/auth/guest-send-otp", { phone: customerPhone });
+      await api.post("/api/auth/guest-send-otp", { 
+        phone: customerPhone,
+        restaurantId: restaurant.id 
+      });
       setShowOTPModal(true);
     } catch (e) {
       showAlert("فشل إرسال كود التحقق عبر الواتساب");
@@ -708,30 +721,37 @@ export default function PublicMenu() {
       <div className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {restaurant.logo && <img src={restaurant.logo} alt={restaurant.name} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover shadow-sm md:hidden" referrerPolicy="no-referrer" />}
+            {restaurant.logo && <img src={restaurant.logo} alt={restaurant.name} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover shadow-sm" referrerPolicy="no-referrer" />}
             <div>
-              <h1 className="font-bold text-lg md:text-xl text-gray-900 leading-none md:hidden">{restaurant.name}</h1>
-              <div className="hidden md:flex items-center gap-2">
-                <Utensils className="w-6 h-6 text-theme" />
-                <span className="text-xl font-black text-gray-900">قائمة الطعام</span>
-              </div>
+              <h1 className="font-bold text-lg md:text-xl text-gray-900 leading-none">{restaurant.name}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2 md:gap-4">
-            {/* Notification Center */}
-            <button 
-              onClick={() => setIsActiveOrdersOpen(true)}
-              className="relative p-2 text-gray-500 hover:text-theme transition-colors"
-              title="الإشعارات والطلبات"
-            >
-              <Bell className="w-6 h-6" />
-              {(totalUnread > 0 || activeOrders.length > 0) && (
-                <span className="absolute top-1 right-1 bg-theme w-2.5 h-2.5 rounded-full border-2 border-white"></span>
-              )}
-            </button>
+
+          <div className="flex items-center gap-1 md:gap-3">
+            {/* Consolidated Notification Center */}
+            {(user || activeOrders.length > 0 || totalUnread > 0) && (
+              <button 
+                onClick={() => setIsActiveOrdersOpen(true)}
+                className="relative p-2 text-gray-500 hover:text-theme transition-all hover:scale-110 active:scale-95"
+                title="الإشعارات والطلبات"
+              >
+                <Bell className="w-6 h-6" />
+                {(totalUnread > 0 || activeOrders.length > 0) && (
+                  <span className="absolute top-1.5 right-1.5 bg-theme w-3 h-3 rounded-full border-2 border-white animate-pulse"></span>
+                )}
+                {totalUnread > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                    {totalUnread}
+                  </span>
+                )}
+              </button>
+            )}
 
             {user ? (
               <div className="flex items-center gap-2">
+                <div className="w-9 h-9 bg-theme-light text-theme rounded-full flex items-center justify-center font-bold text-xs ring-2 ring-white cursor-default">
+                  {user.phone ? user.phone.slice(-3) : <User className="w-5 h-5" />}
+                </div>
                 <button 
                   onClick={() => {
                     localStorage.removeItem("sufra_token");
@@ -740,58 +760,25 @@ export default function PublicMenu() {
                     window.location.reload();
                   }}
                   className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                  title="تسجيل الخروج"
+                  title="خروج"
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
-                <div className="w-10 h-10 bg-theme-light text-theme rounded-full flex items-center justify-center font-bold text-xs ring-2 ring-white">
-                  {user.phone ? user.phone.slice(-2) : <User className="w-5 h-5" />}
-                </div>
               </div>
             ) : (
               <button 
                 onClick={() => setShowLoginModal(true)}
-                className="bg-gray-900 text-white px-4 py-2 rounded-full font-bold text-xs hover:bg-black transition-all flex items-center gap-2"
+                className="bg-gray-100 text-gray-600 px-4 py-2 rounded-full font-bold text-xs hover:bg-theme-light hover:text-theme transition-all flex items-center gap-2"
               >
                 <User className="w-4 h-4" />
                 <span className="hidden sm:inline">دخول</span>
               </button>
             )}
 
-            {(activeOrders.length > 0 || localStorage.getItem("sufra_active_orders") !== "[]") && (
-              <>
-                <button 
-                  onClick={() => {
-                    if (activeOrders.length === 1) {
-                      setSelectedChatOrderId(activeOrders[0]);
-                    } else {
-                      setIsActiveOrdersOpen(true);
-                    }
-                  }}
-                  className="relative p-2 text-theme bg-theme-light rounded-full hover:scale-105 transition-transform"
-                >
-                  <MessageSquare className="w-6 h-6" />
-                  {totalUnread > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
-                      {totalUnread}
-                    </span>
-                  )}
-                </button>
-                <button 
-                  onClick={() => setIsActiveOrdersOpen(true)}
-                  className="relative p-2 text-theme bg-theme-light rounded-full hover:scale-105 transition-transform"
-                >
-                  <ClipboardList className="w-6 h-6" />
-                  <span className="absolute -top-1 -right-1 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                    {activeOrders.length || JSON.parse(localStorage.getItem("zantex_active_orders") || "[]").length}
-                  </span>
-                </button>
-              </>
-            )}
-            <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-gray-600 hover:text-theme transition-colors hover:scale-105 transition-transform">
+            <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-gray-600 hover:text-theme transition-all hover:scale-110 active:scale-95">
               <ShoppingBag className="w-6 h-6" />
               {cart.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-theme text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-theme text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-lg">
                   {cart.reduce((a, b) => a + b.quantity, 0)}
                 </span>
               )}
@@ -987,45 +974,100 @@ export default function PublicMenu() {
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {loadingOrders && ordersWithStatus.length === 0 ? (
-                  <div className="py-12 text-center text-gray-500">جاري تحميل الطلبات...</div>
-                ) : ordersWithStatus.length === 0 ? (
-                  <div className="py-12 text-center text-gray-500">لا توجد طلبات نشطة حالياً</div>
-                ) : (
-                  ordersWithStatus.map(order => (
-                    <div 
-                      key={order.id}
-                      onClick={() => navigate(`/order/${order.id}`)}
-                      className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between cursor-pointer hover:bg-white hover:shadow-xl hover:shadow-gray-100 border border-transparent hover:border-gray-100 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-theme shadow-sm relative group-hover:scale-110 transition-transform">
-                          <ClipboardList className="w-7 h-7" />
-                          {unreadMessages[order.id] > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
-                              {unreadMessages[order.id]}
-                            </span>
-                          )}
+              <div className="space-y-6">
+                {/* Persistent Coupons Section */}
+                {(() => {
+                  const savedCoupons = JSON.parse(localStorage.getItem(`sufra_persistent_coupons_${restaurant?.id}`) || "[]");
+                  if (savedCoupons.length === 0) return null;
+                  return (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-2 flex items-center gap-2">
+                        <Ticket className="w-3 h-3" />
+                        عروض خاصة لك
+                      </h3>
+                      {savedCoupons.map((coupon: any, idx: number) => (
+                        <div 
+                          key={idx}
+                          className="bg-theme-light p-5 rounded-3xl border-2 border-dashed border-theme/20 relative overflow-hidden group"
+                        >
+                          <div className="relative z-10 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs text-theme font-bold mb-1">كود خصم حصري</p>
+                              <h4 className="text-xl font-black text-gray-900 tracking-wider">{coupon.code}</h4>
+                              <p className="text-[10px] text-gray-500 mt-1">خصم بقيمة {coupon.discountPercentage}% على طلبك القادم</p>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                setCouponInput(coupon.code);
+                                setIsActiveOrdersOpen(false);
+                                setIsCartOpen(true);
+                              }}
+                              className="bg-theme text-white p-3 rounded-2xl shadow-lg shadow-theme/20 hover:scale-105 transition-transform"
+                            >
+                              <Plus className="w-5 h-5" />
+                            </button>
+                          </div>
+                          {/* Decorative pattern */}
+                          <div className="absolute top-0 right-0 w-16 h-16 bg-theme/5 rounded-full -mr-8 -mt-8 animate-pulse text-theme/10 flex items-center justify-center font-black text-4xl select-none">%</div>
                         </div>
-                        <div>
-                          <h4 className="font-bold text-gray-900">طلب #{order.id.slice(-6)}</h4>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {order.status === 'pending' && 'قيد الانتظار'}
-                            {order.status === 'preparing' && 'قيد التحضير'}
-                            {order.status === 'out-for-delivery' && 'خارج للتوصيل'}
-                            {order.status === 'completed' && 'تم التسليم'}
-                            {order.status === 'cancelled' && 'تم الإلغاء'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-left">
-                        <p className="font-black text-theme">{formatCurrency(order.total)}</p>
-                        <ChevronRight className="w-5 h-5 text-gray-300 inline-block mt-1 group-hover:translate-x-[-4px] transition-transform" />
-                      </div>
+                      ))}
+                      <button 
+                        onClick={() => {
+                          localStorage.setItem(`sufra_persistent_coupons_${restaurant?.id}`, "[]");
+                          window.location.reload();
+                        }}
+                        className="w-full py-2 text-[10px] text-gray-400 font-bold hover:text-red-500 transition-colors"
+                      >
+                        مسح العروض
+                      </button>
                     </div>
-                  ))
-                )}
+                  );
+                })()}
+
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-2 flex items-center gap-2">
+                    <ClipboardList className="w-3 h-3" />
+                    طلباتي
+                  </h3>
+                  {loadingOrders && ordersWithStatus.length === 0 ? (
+                    <div className="py-12 text-center text-gray-500">جاري تحميل الطلبات...</div>
+                  ) : ordersWithStatus.length === 0 ? (
+                    <div className="py-8 text-center text-gray-400 text-sm font-medium bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100 italic">لا توجد طلبات نشطة حالياً</div>
+                  ) : (
+                    ordersWithStatus.map(order => (
+                      <div 
+                        key={order.id}
+                        onClick={() => navigate(`/order/${order.id}`)}
+                        className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between cursor-pointer hover:bg-white hover:shadow-xl hover:shadow-gray-100 border border-transparent hover:border-gray-100 transition-all group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-theme shadow-sm relative group-hover:scale-110 transition-transform">
+                            <ClipboardList className="w-7 h-7" />
+                            {unreadMessages[order.id] > 0 && (
+                              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+                                {unreadMessages[order.id]}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">طلب #{order.id.slice(-6)}</h4>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {order.status === 'pending' && 'قيد الانتظار'}
+                              {order.status === 'preparing' && 'قيد التحضير'}
+                              {order.status === 'out-for-delivery' && 'خارج للتوصيل'}
+                              {order.status === 'completed' && 'تم التسليم'}
+                              {order.status === 'cancelled' && 'تم الإلغاء'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <p className="font-black text-theme">{formatCurrency(order.total)}</p>
+                          <ChevronRight className="w-5 h-5 text-gray-300 inline-block mt-1 group-hover:translate-x-[-4px] transition-transform" />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>

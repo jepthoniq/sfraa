@@ -162,29 +162,8 @@ export default function LandingPage() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="bg-white w-full max-w-md rounded-[2.5rem] p-8 lg:p-10 relative z-10 shadow-2xl"
             >
-              <div className="flex p-1 bg-gray-50 rounded-2xl mb-8">
-                <button 
-                  onClick={() => { setActiveTab("customer"); setError(null); }}
-                  className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${activeTab === "customer" ? "bg-white text-red-600 shadow-sm" : "text-gray-400"}`}
-                >
-                  <Smartphone className="w-4 h-4" />
-                  تسجيل زبون
-                </button>
-                <button 
-                  onClick={() => { setActiveTab("manager"); setError(null); }}
-                  className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${activeTab === "manager" ? "bg-white text-red-600 shadow-sm" : "text-gray-400"}`}
-                >
-                  <Utensils className="w-4 h-4" />
-                  إدارة المطعم
-                </button>
-              </div>
-
-              <h2 className="text-3xl font-black mb-2">
-                {activeTab === "customer" ? "مرحباً بالزبون" : "دخول الإدارة"}
-              </h2>
-              <p className="text-gray-500 mb-8">
-                {activeTab === "customer" ? "سجل برقم هاتفك لمتابعة طلباتك" : "أدخل بياناتك للوصول للوحة التحكم"}
-              </p>
+              <h2 className="text-3xl font-black mb-2">دخول الإدارة</h2>
+              <p className="text-gray-500 mb-8">أدخل بياناتك للوصول للوحة التحكم</p>
               
               {error && (
                 <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100">
@@ -192,54 +171,7 @@ export default function LandingPage() {
                 </div>
               )}
               
-              {activeTab === "customer" ? (
-                <form onSubmit={otpSent ? handleVerifyOTP : handleSendOTP} className="space-y-6">
-                  {!otpSent ? (
-                    <div>
-                      <label className="block text-sm font-bold mb-2 mr-1">رقم الهاتف</label>
-                      <input 
-                        type="tel" 
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-2xl outline-none transition-all font-medium text-left"
-                        placeholder="07XXXXXXXX"
-                        style={{ direction: 'ltr' }}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex justify-between items-center mb-2 mr-1">
-                        <label className="block text-sm font-bold">كود التحقق</label>
-                        <button type="button" onClick={() => setOtpSent(false)} className="text-xs text-red-600 font-bold">تغيير الرقم</button>
-                      </div>
-                      <input 
-                        type="text" 
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value)}
-                        className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-2xl outline-none transition-all font-black text-center tracking-[1em]"
-                        placeholder="000000"
-                        maxLength={6}
-                        required
-                        autoFocus
-                        disabled={loading}
-                      />
-                      <p className="text-[10px] text-gray-400 mt-2 text-center">أدخل الكود المرسل لـ WhatsApp</p>
-                    </div>
-                  )}
-
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-red-600 text-white py-5 rounded-2xl font-bold text-lg hover:bg-red-700 transition-all shadow-xl shadow-red-100 flex items-center justify-center gap-3"
-                  >
-                    {loading ? "جاري المعالجة..." : (otpSent ? "تأكيد الكود" : "إرسال كود التحقق")}
-                    {!loading && <MessageCircle className="w-5 h-5" />}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleLogin} className="space-y-6">
+              <form onSubmit={handleLogin} className="space-y-6">
                   <div>
                     <label className="block text-sm font-bold mb-2 mr-1">البريد الإلكتروني</label>
                     <input 
@@ -292,7 +224,6 @@ export default function LandingPage() {
                     {!loading && <ArrowRight className="w-5 h-5 rotate-180" />}
                   </button>
                 </form>
-              )}
               
               <button 
                 onClick={() => setShowLoginModal(false)}

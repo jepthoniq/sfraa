@@ -268,37 +268,37 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
           <h1 className="text-2xl font-bold text-gray-900">الطلبات الحالية</h1>
           <p className="text-gray-500">إدارة ومتابعة طلبات الزبائن مباشرة</p>
         </div>
-        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100 overflow-x-auto no-scrollbar max-w-full">
           <button 
             onClick={() => setFilter("active")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all", filter === "active" ? "bg-red-600 text-white" : "text-gray-600")}
+            className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter === "active" ? "bg-red-600 text-white" : "text-gray-600")}
           >
             النشطة
           </button>
           <button 
             onClick={() => setFilter("dine-in")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2", filter === "dine-in" ? "bg-red-600 text-white" : "text-gray-600")}
+            className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap", filter === "dine-in" ? "bg-red-600 text-white" : "text-gray-600")}
           >
             <Utensils className="w-4 h-4" />
-            داخل المطعم
+            داخلي
           </button>
           <button 
             onClick={() => setFilter("delivery")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2", filter === "delivery" ? "bg-red-600 text-white" : "text-gray-600")}
+            className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap", filter === "delivery" ? "bg-red-600 text-white" : "text-gray-600")}
           >
             <MapPin className="w-4 h-4" />
             توصيل
           </button>
           <button 
             onClick={() => setFilter("history")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2", filter === "history" ? "bg-red-600 text-white" : "text-gray-600")}
+            className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap", filter === "history" ? "bg-red-600 text-white" : "text-gray-600")}
           >
             <ClipboardList className="w-4 h-4" />
             الأرشيف
           </button>
           <button 
             onClick={() => setFilter("blocked")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2", filter === "blocked" ? "bg-red-600 text-white" : "text-gray-600")}
+            className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap", filter === "blocked" ? "bg-red-600 text-white" : "text-gray-600")}
           >
             <Ban className="w-4 h-4" />
             المحظورين

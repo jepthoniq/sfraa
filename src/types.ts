@@ -10,6 +10,8 @@ export interface Restaurant {
   minOrder: number;
   isDeliveryEnabled: boolean;
   whatsappNumber?: string;
+  whatsappInstanceId?: string;
+  whatsappToken?: string;
   themeColor?: string;
   subscriptionStatus: "active" | "trial" | "expired";
   subscriptionStartedAt?: string;

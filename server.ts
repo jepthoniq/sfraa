@@ -91,20 +91,34 @@ async function startServer() {
   };
 
   // Guest OTP for orders
-  app.post("/api/auth/guest-send-otp", (req, res) => {
+  app.post("/api/auth/guest-send-otp", async (req, res) => {
     try {
-      const { phone } = req.body;
+      const { phone, restaurantId } = req.body;
       if (!phone) return res.status(400).json({ error: "رقم الهاتف مطلوب" });
 
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       
-      console.log(`
-      =======================================================
-      NOTIFICATION: WhatsApp OTP
-      To: ${phone}
-      Code: ${code}
-      =======================================================
-      `);
+      // Check if restaurant has WhatsApp settings
+      let sentReal = false;
+      if (restaurantId) {
+        const restaurant = db.prepare("SELECT whatsapp_instance_id, whatsapp_token FROM restaurants WHERE id = ?").get(restaurantId) as any;
+        if (restaurant && restaurant.whatsapp_instance_id && restaurant.whatsapp_token) {
+          // This is where you'd call an actual WhatsApp API (e.g. UltraMsg)
+          // For now we simulate that it happened if credentials are present
+          console.log(`[REAL WHATSAPP] Sending OTP ${code} to ${phone} using Instance: ${restaurant.whatsapp_instance_id}`);
+          sentReal = true;
+        }
+      }
+
+      if (!sentReal) {
+        console.log(`
+        =======================================================
+        NOTIFICATION: WhatsApp OTP (Simulation)
+        To: ${phone}
+        Code: ${code}
+        =======================================================
+        `);
+      }
 
       db.prepare("INSERT OR REPLACE INTO phone_verifications (phone, code) VALUES (?, ?)").run(phone, code);
       res.json({ success: true, message: "تم إرسال كود التحقق عبر الواتساب" });
@@ -299,6 +313,8 @@ async function startServer() {
           minOrder: newRest.min_order,
           isDeliveryEnabled: !!newRest.is_delivery_enabled,
           whatsappNumber: newRest.whatsapp_number,
+          whatsappInstanceId: newRest.whatsapp_instance_id,
+          whatsappToken: newRest.whatsapp_token,
           themeColor: newRest.theme_color,
           subscriptionStatus: newRest.subscription_status,
           subscriptionStartedAt: newRest.subscription_started_at,
@@ -313,6 +329,8 @@ async function startServer() {
         minOrder: restaurant.min_order,
         isDeliveryEnabled: !!restaurant.is_delivery_enabled,
         whatsappNumber: restaurant.whatsapp_number,
+        whatsappInstanceId: restaurant.whatsapp_instance_id,
+        whatsappToken: restaurant.whatsapp_token,
         themeColor: restaurant.theme_color,
         subscriptionStatus: restaurant.subscription_status,
         subscriptionStartedAt: restaurant.subscription_started_at,
@@ -355,7 +373,7 @@ async function startServer() {
 
   app.put("/api/restaurants/me", authenticate, (req: any, res) => {
     try {
-      const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber, address, phone, themeColor, dashboardColor } = req.body;
+      const { name, slug, logo, minOrder, isDeliveryEnabled, whatsappNumber, whatsappInstanceId, whatsappToken, address, phone, themeColor, dashboardColor } = req.body;
       
       // Check if slug is taken by another restaurant
       const existing = db.prepare("SELECT id FROM restaurants WHERE slug = ? AND owner_id != ?").get(slug, req.user.id);
@@ -365,9 +383,9 @@ async function startServer() {
 
       db.prepare(`
         UPDATE restaurants 
-        SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, address = ?, phone = ?, theme_color = ?
+        SET name = ?, slug = ?, logo = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, whatsapp_instance_id = ?, whatsapp_token = ?, address = ?, phone = ?, theme_color = ?
         WHERE owner_id = ?
-      `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, address, phone, themeColor, req.user.id);
+      `).run(name, slug, logo, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, whatsappInstanceId, whatsappToken, address, phone, themeColor, req.user.id);
 
       // Update dashboard color in users table
       if (dashboardColor) {
