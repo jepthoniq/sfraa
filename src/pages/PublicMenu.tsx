@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { Restaurant, MenuCategory, MenuItem, DeliveryZone, OrderItem } from "../types";
 import { formatCurrency, cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban, Ticket, Bell, Megaphone } from "lucide-react";
+import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban, Ticket, Bell, Megaphone, User, LogOut, Smartphone } from "lucide-react";
 import Chat from "../components/Chat";
 import LoadingScreen from "../components/LoadingScreen";
 import { io } from "socket.io-client";
@@ -26,6 +26,16 @@ export default function PublicMenu() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem("sufra_user");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginPhone, setLoginPhone] = useState("");
+  const [loginOtpSent, setLoginOtpSent] = useState(false);
+  const [loginOtpCode, setLoginOtpCode] = useState("");
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  
   const [activeOrders, setActiveOrders] = useState<string[]>(() => {
     const saved = localStorage.getItem("zantex_active_orders");
     return saved ? JSON.parse(saved) : [];
@@ -157,6 +167,14 @@ export default function PublicMenu() {
   }, [restaurant?.id]);
 
   useEffect(() => {
+    if (user) {
+      setCustomerPhone(user.phone || "");
+      setCustomerName(user.name || "");
+      setIsPhoneVerified(true);
+    }
+  }, [user]);
+
+  useEffect(() => {
     if (customerPhone) {
       localStorage.setItem("zantex_customer_phone", customerPhone);
     }
@@ -210,10 +228,19 @@ export default function PublicMenu() {
     fetchRestaurant();
 
     // Socket.io for Real-time Coupon Alerts
-    const socket = io(window.location.origin);
+    const socket = io(window.location.host === 'localhost:3000' ? 'http://localhost:3000' : window.location.origin);
     
-    socket.on(`coupon-alert-${restaurant?.id || slug}`, (data) => {
+    const restId = restaurant?.id || slug;
+    
+    socket.on(`coupon-alert-${restId}`, (data) => {
       setCouponAlert(data);
+    });
+
+    socket.on("global-coupon-alert", (data) => {
+      // Show if it's from current restaurant or just show general if relevant
+      if (data.slug === slug || data.restaurantId === restaurant?.id) {
+        setCouponAlert(data);
+      }
     });
 
     return () => {
@@ -249,6 +276,46 @@ export default function PublicMenu() {
     });
   };
 
+  const handleSendLoginOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginPhone) return;
+    setIsLoginLoading(true);
+    try {
+      await api.post("/api/auth/customer-send-otp", { phone: loginPhone });
+      setLoginOtpSent(true);
+    } catch (e) {
+      showAlert("فشل إرسال كود التحقق عبر الواتساب");
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleVerifyLoginOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginOtpCode) return;
+    setIsLoginLoading(true);
+    try {
+      const { token, user } = await api.post("/api/auth/customer-verify-otp", { phone: loginPhone, code: loginOtpCode });
+      localStorage.setItem("sufra_token", token);
+      localStorage.setItem("sufra_user", JSON.stringify(user));
+      localStorage.setItem(`verified_${user.phone || loginPhone}`, "true");
+      localStorage.setItem("zantex_customer_phone", user.phone || loginPhone);
+      setUser(user);
+      setCustomerPhone(user.phone || loginPhone);
+      setCustomerName(user.name || "");
+      setIsPhoneVerified(true);
+      setShowLoginModal(false);
+      setLoginOtpSent(false);
+      setLoginOtpCode("");
+      setLoginPhone("");
+      showAlert("تم تسجيل الدخول بنجاح", "مرحباً");
+    } catch (e: any) {
+      showAlert(e.response?.data?.error || "كود التحقق غير صحيح");
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       alert("متصفحك لا يدعم تحديد الموقع");
@@ -279,7 +346,7 @@ export default function PublicMenu() {
     setIsValidatingCoupon(true);
     try {
       const result = await api.post(`/api/restaurants/${restaurant.id}/validate-coupon`, {
-        code: couponInput.toUpperCase().trim(),
+        code: couponInput.trim(),
         customerPhone: customerPhone.trim()
       });
       setAppliedCoupon({
@@ -287,8 +354,9 @@ export default function PublicMenu() {
         discountPercentage: Number(result.discountPercentage)
       });
       setCouponInput("");
+      showAlert("تم تطبيق الخصم بنجاح: " + result.discountPercentage + "%");
     } catch (e: any) {
-      showAlert(e.message || "كود الخصم غير صحيح");
+      showAlert(e.response?.data?.error || "كود الخصم غير صحيح أو غير مفعل حالياً");
     } finally {
       setIsValidatingCoupon(false);
     }
@@ -467,6 +535,88 @@ export default function PublicMenu() {
         .bg-theme-light { background-color: var(--theme-color-light) !important; }
       `}</style>
       
+      {/* Login Modal */}
+      <AnimatePresence>
+        {showLoginModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-8 lg:p-10 relative shadow-2xl"
+            >
+              <button 
+                onClick={() => setShowLoginModal(false)}
+                className="absolute left-6 top-6 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-theme-light text-theme rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <Smartphone className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-black text-gray-900">تسجيل الدخول</h2>
+                <p className="text-gray-500 text-sm mt-1">أدخل رقم هاتفك لمتابعة طلباتك</p>
+              </div>
+
+              <form onSubmit={loginOtpSent ? handleVerifyLoginOTP : handleSendLoginOTP} className="space-y-6">
+                {!loginOtpSent ? (
+                  <div>
+                    <label className="block text-sm font-bold mb-2 mr-1">رقم الهاتف</label>
+                    <input 
+                      type="tel" 
+                      value={loginPhone}
+                      onChange={(e) => setLoginPhone(e.target.value)}
+                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl outline-none transition-all font-medium text-left"
+                      placeholder="07XXXXXXXX"
+                      style={{ direction: 'ltr' }}
+                      required
+                      disabled={isLoginLoading}
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex justify-between items-center mb-2 mr-1">
+                      <label className="block text-sm font-bold">كود التحقق</label>
+                      <button type="button" onClick={() => setLoginOtpSent(false)} className="text-xs text-theme font-bold">تغيير الرقم</button>
+                    </div>
+                    <input 
+                      type="text" 
+                      value={loginOtpCode}
+                      onChange={(e) => setLoginOtpCode(e.target.value)}
+                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-theme focus:bg-white rounded-2xl outline-none transition-all font-black text-center tracking-[1em]"
+                      placeholder="000000"
+                      maxLength={6}
+                      required
+                      autoFocus
+                      disabled={isLoginLoading}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-2 text-center">أدخل الكود المرسل لـ WhatsApp (التجريبي: 121212)</p>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={isLoginLoading}
+                  className="w-full bg-theme text-white py-4 rounded-2xl font-bold text-lg hover:bg-theme/90 transition-all shadow-xl shadow-theme/10 flex items-center justify-center gap-3"
+                >
+                  {isLoginLoading ? (
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (loginOtpSent ? "تأكيد الكود" : "إرسال كود التحقق")}
+                  {!isLoginLoading && <MessageCircle className="w-5 h-5" />}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Coupon Alert Modal */}
       <AnimatePresence>
         {couponAlert && (
@@ -568,6 +718,46 @@ export default function PublicMenu() {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
+            {/* Notification Center */}
+            <button 
+              onClick={() => setIsActiveOrdersOpen(true)}
+              className="relative p-2 text-gray-500 hover:text-theme transition-colors"
+              title="الإشعارات والطلبات"
+            >
+              <Bell className="w-6 h-6" />
+              {(totalUnread > 0 || activeOrders.length > 0) && (
+                <span className="absolute top-1 right-1 bg-theme w-2.5 h-2.5 rounded-full border-2 border-white"></span>
+              )}
+            </button>
+
+            {user ? (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    localStorage.removeItem("sufra_token");
+                    localStorage.removeItem("sufra_user");
+                    setUser(null);
+                    window.location.reload();
+                  }}
+                  className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                  title="تسجيل الخروج"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+                <div className="w-10 h-10 bg-theme-light text-theme rounded-full flex items-center justify-center font-bold text-xs ring-2 ring-white">
+                  {user.phone ? user.phone.slice(-2) : <User className="w-5 h-5" />}
+                </div>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setShowLoginModal(true)}
+                className="bg-gray-900 text-white px-4 py-2 rounded-full font-bold text-xs hover:bg-black transition-all flex items-center gap-2"
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden sm:inline">دخول</span>
+              </button>
+            )}
+
             {(activeOrders.length > 0 || localStorage.getItem("sufra_active_orders") !== "[]") && (
               <>
                 <button 
@@ -1205,7 +1395,6 @@ export default function PublicMenu() {
                 </button>
                 
                 <div className="pt-2">
-                  <p className="text-[10px] text-gray-400 mb-2">(كود تجريبي: 121212)</p>
                   <button 
                     onClick={() => setShowOTPModal(false)}
                     disabled={isVerifyingOTP}

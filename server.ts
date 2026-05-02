@@ -97,9 +97,14 @@ async function startServer() {
       if (!phone) return res.status(400).json({ error: "رقم الهاتف مطلوب" });
 
       const code = Math.floor(100000 + Math.random() * 900000).toString();
-      // Simulation of WhatsApp sending
-      console.log(`[SIMULATED WHATSAPP] OTP for ${phone}: ${code}`);
-      console.log(`Message: رمز التحقق الخاص بك لطلب "سفرة" هو: ${code}. يرجى عدم مشاركته مع أحد.`);
+      
+      console.log(`
+      =======================================================
+      NOTIFICATION: WhatsApp OTP
+      To: ${phone}
+      Code: ${code}
+      =======================================================
+      `);
 
       db.prepare("INSERT OR REPLACE INTO phone_verifications (phone, code) VALUES (?, ?)").run(phone, code);
       res.json({ success: true, message: "تم إرسال كود التحقق عبر الواتساب" });
@@ -113,7 +118,7 @@ async function startServer() {
       const { phone, code } = req.body;
       const row = db.prepare("SELECT * FROM phone_verifications WHERE phone = ?").get(phone) as any;
       
-      if (!row || (row.code !== code && code !== "121212")) {
+      if (!row || row.code !== code) {
         return res.status(400).json({ error: "كود التحقق غير صحيح" });
       }
 
@@ -132,8 +137,13 @@ async function startServer() {
 
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // WhatsApp Simulation
-      console.log(`[WHATSAPP AUTH] Customer OTP for ${phone}: ${code}`);
+      console.log(`
+      =======================================================
+      NOTIFICATION: Login OTP (Registration)
+      To: ${phone}
+      Code: ${code}
+      =======================================================
+      `);
       
       // Save/Update code in users table for customer
       let user = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as any;
@@ -159,7 +169,7 @@ async function startServer() {
       const user = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as any;
       if (!user) return res.status(404).json({ error: "المستخدم غير موجود" });
 
-      if (user.verification_code !== code && code !== "121212") {
+      if (user.verification_code !== code) {
         return res.status(401).json({ error: "كود التحقق غير صحيح" });
       }
 
@@ -225,7 +235,7 @@ async function startServer() {
       const user = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as any;
       if (!user) return res.status(404).json({ error: "المستخدم غير موجود" });
 
-      if (user.verification_code !== code && code !== "121212") { // Added 121212 for testing
+      if (user.verification_code !== code) {
         return res.status(401).json({ error: "كود التحقق غير صحيح" });
       }
 
@@ -510,49 +520,61 @@ async function startServer() {
   });
 
   app.post("/api/restaurants/:id/validate-coupon", (req, res) => {
-    const { code, customerPhone } = req.body;
-    const restaurantId = req.params.id;
-    
-    const coupon = db.prepare("SELECT * FROM coupons WHERE restaurant_id = ? AND code = ? AND is_active = 1").get(restaurantId, code) as any;
-    
-    if (!coupon) {
-      return res.status(404).json({ error: "كود الخصم غير صحيح أو غير مفعل" });
-    }
-
-    // Check expiry
-    if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) {
-      return res.status(400).json({ error: "لقد انتهت صلاحية كود الخصم" });
-    }
-
-    // Check usage limit
-    if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
-      return res.status(400).json({ error: "لقد تم استخدام كود الخصم كلياً" });
-    }
-
-    // Check usage per user
-    if (customerPhone) {
-      const userUsage = db.prepare("SELECT COUNT(*) as count FROM orders WHERE restaurant_id = ? AND customer_phone = ? AND coupon_code = ?").get(restaurantId, customerPhone, code) as any;
-      if (userUsage && userUsage.count >= (coupon.usage_limit_per_user || 1)) {
-        return res.status(400).json({ error: "لقد استنفذت عدد مرات استخدام هذا الكود" });
+    try {
+      const { code, customerPhone } = req.body;
+      const restaurantId = req.params.id;
+      
+      if (!code) {
+        return res.status(400).json({ error: "يرجى إدخال كود الخصم" });
       }
-    }
 
-    // Check first order only
-    if (coupon.is_first_order_only) {
-      if (!customerPhone) {
-        return res.status(400).json({ error: "يرجى إدخال رقم الهاتف للتحقق من أول طلب" });
+      // Find the coupon, being lenient with is_active
+      const coupon = db.prepare(`
+        SELECT * FROM coupons 
+        WHERE restaurant_id = ? 
+        AND code = ? 
+        AND (is_active = 1 OR is_active = 'true' OR is_active IS NULL)
+      `).get(restaurantId, code.trim()) as any;
+      
+      if (!coupon) {
+        return res.status(404).json({ error: "كود الخصم غير صحيح أو غير مفعل حالياً" });
       }
-      const previousOrder = db.prepare("SELECT 1 FROM orders WHERE restaurant_id = ? AND customer_phone = ?").get(restaurantId, customerPhone);
-      if (previousOrder) {
-        return res.status(400).json({ error: "كود الخصم مخصص للطلب الأول فقط" });
-      }
-    }
 
-    res.json({
-      id: coupon.id,
-      code: coupon.code,
-      discountPercentage: coupon.discount_percentage
-    });
+      // Check expiry
+      if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) {
+        return res.status(400).json({ error: "لقد انتهت صلاحية كود الخصم" });
+      }
+
+      // Check total usage limit
+      if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
+        return res.status(400).json({ error: "لقد تم استنفاد عدد مرات استخدام هذا الكود بنجاح" });
+      }
+
+      // Check usage per user
+      if (customerPhone) {
+        const userUsage = db.prepare("SELECT COUNT(*) as count FROM orders WHERE restaurant_id = ? AND customer_phone = ? AND coupon_code = ?").get(restaurantId, customerPhone, code) as any;
+        if (userUsage && userUsage.count >= (coupon.usage_limit_per_user || 1)) {
+          return res.status(400).json({ error: "لقد استخدمت هذا الكود مسبقاً" });
+        }
+
+        // Check first order only
+        if (coupon.is_first_order_only) {
+          const previousOrder = db.prepare("SELECT 1 FROM orders WHERE restaurant_id = ? AND customer_phone = ?").get(restaurantId, customerPhone);
+          if (previousOrder) {
+            return res.status(400).json({ error: "كود الخصم مخصص للطلب الأول فقط" });
+          }
+        }
+      }
+
+      res.json({
+        id: coupon.id,
+        code: coupon.code,
+        discountPercentage: coupon.discount_percentage
+      });
+    } catch (error) {
+      console.error("Coupon Validation Error:", error);
+      res.status(500).json({ error: "خطأ في التحقق من كود الخصم" });
+    }
   });
 
   app.get("/api/restaurants/:id/orders", authenticate, (req, res) => {

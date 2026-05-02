@@ -225,7 +225,7 @@ export default function LandingPage() {
                         autoFocus
                         disabled={loading}
                       />
-                      <p className="text-[10px] text-gray-400 mt-2 text-center">أدخل الكود المرسل لـ WhatsApp (التجريبي: 121212)</p>
+                      <p className="text-[10px] text-gray-400 mt-2 text-center">أدخل الكود المرسل لـ WhatsApp</p>
                     </div>
                   )}
 
