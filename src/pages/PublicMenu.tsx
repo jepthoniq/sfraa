@@ -51,6 +51,10 @@ export default function PublicMenu() {
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{code: string, discountPercentage: number} | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(localStorage.getItem(`verified_${customerPhone}`) === "true");
   const [alertModal, setAlertModal] = useState<{show: boolean, message: string, title?: string}>({ show: false, message: "" });
   const [confirmModal, setConfirmModal] = useState<{show: boolean, message: string, onConfirm: () => void}>({ show: false, message: "", onConfirm: () => {} });
 
@@ -263,11 +267,13 @@ export default function PublicMenu() {
     try {
       const result = await api.post(`/api/restaurants/${restaurant.id}/validate-coupon`, {
         code: couponInput.toUpperCase().trim(),
-        customerPhone
+        customerPhone: customerPhone.trim()
       });
-      setAppliedCoupon(result);
+      setAppliedCoupon({
+        code: result.code,
+        discountPercentage: Number(result.discountPercentage)
+      });
       setCouponInput("");
-      showAlert("تم تطبيق كود الخصم بنجاح!", "رائع");
     } catch (e: any) {
       showAlert(e.message || "كود الخصم غير صحيح");
     } finally {
@@ -275,10 +281,39 @@ export default function PublicMenu() {
     }
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const discountAmount = appliedCoupon ? Math.floor(subtotal * (appliedCoupon.discountPercentage / 100)) : 0;
-  const deliveryFee = orderType === "delivery" ? (selectedZone?.fee || 0) : 0;
-  const total = subtotal - discountAmount + deliveryFee;
+  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
+  const discountAmount = appliedCoupon ? Math.floor(subtotal * (Number(appliedCoupon.discountPercentage) / 100)) : 0;
+  const deliveryFee = orderType === "delivery" ? (Number(selectedZone?.fee) || 0) : 0;
+  const total = Math.max(0, subtotal - discountAmount + deliveryFee);
+
+  const handleSendOTP = async () => {
+    if (!customerPhone) return;
+    setIsVerifyingOTP(true);
+    try {
+      await api.post("/api/auth/guest-send-otp", { phone: customerPhone });
+      setShowOTPModal(true);
+    } catch (e) {
+      showAlert("فشل إرسال كود التحقق عبر الواتساب");
+    } finally {
+      setIsVerifyingOTP(false);
+    }
+  };
+
+  const verifyAndCheckout = async () => {
+    setIsVerifyingOTP(true);
+    try {
+      await api.post("/api/auth/guest-verify-otp", { phone: customerPhone, code: otpCode });
+      localStorage.setItem(`verified_${customerPhone}`, "true");
+      setIsPhoneVerified(true);
+      setShowOTPModal(false);
+      // Proceed with order creation
+      await finalizeOrder();
+    } catch (e) {
+      showAlert("كود التحقق غير صحيح، يرجى التأكد من الرسالة الواردة على واتساب");
+    } finally {
+      setIsVerifyingOTP(false);
+    }
+  };
 
   const handleCheckout = async (viaWhatsapp: boolean = false) => {
     if (!restaurant) return;
@@ -294,6 +329,18 @@ export default function PublicMenu() {
       }
     }
 
+    // Check if phone needs verification
+    const verified = localStorage.getItem(`verified_${customerPhone}`) === "true";
+    if (orderType === "delivery" && !verified) {
+      await handleSendOTP();
+      return;
+    }
+
+    await finalizeOrder(viaWhatsapp);
+  };
+
+  const finalizeOrder = async (viaWhatsapp: boolean = false) => {
+    if (!restaurant) return;
     try {
       const orderData = {
         restaurantId: restaurant.id,
@@ -895,39 +942,39 @@ export default function PublicMenu() {
                   <div className="mt-6 bg-gray-50 p-6 rounded-3xl border-2 border-dashed border-gray-200">
                     <label className="block text-xs font-bold text-gray-400 mb-3 mr-1 uppercase tracking-wider">كود الخصم</label>
                     {appliedCoupon ? (
-                      <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-2xl px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                      <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-2xl px-4 py-3 md:px-6 md:py-4">
+                        <div className="flex items-center gap-2 md:gap-3">
+                          <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
                             <Ticket className="w-4 h-4" />
                           </div>
-                          <div>
-                             <p className="font-bold text-green-900 text-sm">تم تطبيق {appliedCoupon.code}</p>
+                          <div className="min-w-0">
+                             <p className="font-bold text-green-900 text-sm truncate">تم تطبيق {appliedCoupon.code}</p>
                              <p className="text-[10px] text-green-600 font-bold">خصم {appliedCoupon.discountPercentage}% على الطلب</p>
                           </div>
                         </div>
                         <button 
                           onClick={() => setAppliedCoupon(null)}
-                          className="text-xs font-bold text-red-500 hover:scale-110 transition-transform"
+                          className="text-xs font-bold text-red-500 hover:scale-110 transition-transform shrink-0 ml-2"
                         >
                           إلغاء
                         </button>
                       </div>
                     ) : (
-                      <div className="flex gap-2">
+                      <div className="relative group">
                         <input 
                           type="text" 
-                          placeholder="أدخل الكود هنا..." 
-                          className="flex-1 bg-white border-2 border-transparent focus:border-theme rounded-2xl py-3 px-6 outline-none transition-all font-mono uppercase text-sm"
+                          placeholder="أدخل الكود..." 
+                          className="w-full bg-white border-2 border-transparent focus:border-theme rounded-2xl py-3.5 pr-6 pl-24 md:pl-28 outline-none transition-all font-mono uppercase text-sm shadow-sm"
                           value={couponInput}
                           onChange={(e) => setCouponInput(e.target.value)}
                         />
                         <button 
                           onClick={validateCoupon}
                           disabled={!couponInput || isValidatingCoupon}
-                          className="bg-theme text-white font-bold px-6 rounded-2xl hover:bg-theme/90 transition-all shadow-lg shadow-theme/10 disabled:opacity-50 disabled:grayscale"
+                          className="absolute left-2 top-2 bottom-2 bg-theme text-white font-bold px-4 md:px-6 rounded-xl hover:bg-theme/90 transition-all shadow-lg shadow-theme/10 disabled:opacity-50 disabled:grayscale text-xs md:text-sm"
                         >
                           {isValidatingCoupon ? (
-                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
                           ) : "تطبيق"}
                         </button>
                       </div>
@@ -1051,6 +1098,64 @@ export default function PublicMenu() {
                 >
                   إلغاء
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* OTP Verification Modal */}
+      <AnimatePresence>
+        {showOTPModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 z-[120] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <MessageCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">تأكيد عبر واتساب</h3>
+              <p className="text-gray-500 mb-6 text-sm">أدخل الكود المرسل لـ <span className="font-bold underline" dir="ltr">{customerPhone}</span> عبر تطبيق واتساب</p>
+              
+              <div className="space-y-4">
+                <input 
+                  type="text" 
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full bg-gray-50 border-2 border-transparent focus:border-theme rounded-2xl py-4 text-center text-2xl font-black tracking-[0.5em] outline-none transition-all"
+                  autoFocus
+                />
+                
+                <button 
+                  onClick={verifyAndCheckout}
+                  disabled={isVerifyingOTP || otpCode.length < 6}
+                  className="w-full bg-theme text-white font-bold py-4 rounded-2xl hover:bg-theme/90 transition-all shadow-lg shadow-theme/10 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isVerifyingOTP ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : "تأكيد الطلب"}
+                </button>
+                
+                <div className="pt-2">
+                  <p className="text-[10px] text-gray-400 mb-2">(كود تجريبي: 121212)</p>
+                  <button 
+                    onClick={() => setShowOTPModal(false)}
+                    disabled={isVerifyingOTP}
+                    className="w-full py-2 text-gray-400 text-xs font-bold hover:text-gray-600 transition-all"
+                  >
+                    إلغاء وتعديل البيانات
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

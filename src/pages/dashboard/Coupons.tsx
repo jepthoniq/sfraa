@@ -13,6 +13,7 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
     discountPercentage: "",
     expiryDate: "",
     usageLimit: "",
+    usageLimitPerUser: "1",
     isFirstOrderOnly: false
   });
 
@@ -31,6 +32,7 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
         discountPercentage: c.discount_percentage,
         expiryDate: c.expiry_date,
         usageLimit: c.usage_limit,
+        usageLimitPerUser: c.usage_limit_per_user,
         usageCount: c.usage_count,
         isActive: !!c.is_active,
         isFirstOrderOnly: !!c.is_first_order_only
@@ -58,6 +60,7 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
         discountPercentage: Number(formData.discountPercentage),
         expiryDate: formData.expiryDate || null,
         usageLimit: formData.usageLimit ? Number(formData.usageLimit) : null,
+        usageLimitPerUser: formData.usageLimitPerUser ? Number(formData.usageLimitPerUser) : 1,
         isFirstOrderOnly: formData.isFirstOrderOnly
       });
       setFormData({
@@ -65,6 +68,7 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
         discountPercentage: "",
         expiryDate: "",
         usageLimit: "",
+        usageLimitPerUser: "1",
         isFirstOrderOnly: false
       });
       fetchCoupons();
@@ -135,13 +139,23 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">الحد الأقصى للاستخدام (اختياري)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">الحد الأقصى للاستخدام (كلياً - اختياري)</label>
                 <input 
                   type="number" 
                   placeholder="مثلاً: 100 مرة" 
                   className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500"
                   value={formData.usageLimit}
                   onChange={(e) => setFormData({...formData, usageLimit: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">الحد الأقصى لكل مستخدم</label>
+                <input 
+                  type="number" 
+                  placeholder="مثلاً: 1 مرة واحدة" 
+                  className="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-red-500"
+                  value={formData.usageLimitPerUser}
+                  onChange={(e) => setFormData({...formData, usageLimitPerUser: e.target.value})}
                 />
               </div>
               <div className="flex items-center gap-3 py-2">
@@ -223,10 +237,14 @@ export default function Coupons({ restaurantId }: { restaurantId?: string }) {
                       </button>
                     </div>
                     
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-gray-50">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-gray-50">
                       <div className="flex items-center gap-2 text-gray-500">
                         <Users className="w-4 h-4" />
                         <span className="text-xs">الاستخدام: <span className="font-bold text-gray-900">{coupon.usageCount}</span> {coupon.usageLimit ? `/ ${coupon.usageLimit}` : ""}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <Users className="w-4 h-4" />
+                        <span className="text-xs">لكل مستخدم: <span className="font-bold text-gray-900">{coupon.usageLimitPerUser || 1}</span></span>
                       </div>
                       {coupon.expiryDate && (
                         <div className="flex items-center gap-2 text-gray-500">

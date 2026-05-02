@@ -73,8 +73,8 @@ export default function LandingPage() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="bg-white w-full max-w-md rounded-[2.5rem] p-8 lg:p-10 relative z-10 shadow-2xl"
             >
-              <h2 className="text-3xl font-black mb-2">مرحباً بك في زانتكس</h2>
-              <p className="text-gray-500 mb-8">سجل دخولك للبدء في إدارة مطعمك</p>
+              <h2 className="text-3xl font-black mb-2">تسجيل دخول الإدارة</h2>
+              <p className="text-gray-500 mb-8">أدخل بريدك الإلكتروني للوصول للوحة التحكم</p>
               
               {error && (
                 <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100">

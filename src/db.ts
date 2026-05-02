@@ -57,6 +57,18 @@ try {
   db.prepare("ALTER TABLE orders ADD COLUMN coupon_code TEXT").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN phone TEXT UNIQUE").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN verification_code TEXT").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN phone_verified INTEGER DEFAULT 0").run();
+} catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS coupons (
     id TEXT PRIMARY KEY,
@@ -68,17 +80,27 @@ db.exec(`
     usage_count INTEGER DEFAULT 0,
     is_active INTEGER DEFAULT 1,
     is_first_order_only INTEGER DEFAULT 0,
+    usage_limit_per_user INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS phone_verifications (
+    phone TEXT PRIMARY KEY,
+    code TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE,
+    phone TEXT UNIQUE,
     password TEXT,
     name TEXT,
     is_super_admin INTEGER DEFAULT 0,
-    dashboard_color TEXT DEFAULT '#dc2626'
+    dashboard_color TEXT DEFAULT '#dc2626',
+    verification_code TEXT,
+    phone_verified INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS restaurants (

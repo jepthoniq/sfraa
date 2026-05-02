@@ -45,6 +45,7 @@ export interface Coupon {
   discountPercentage: number;
   expiryDate?: string;
   usageLimit?: number;
+  usageLimitPerUser?: number;
   usageCount: number;
   isActive: boolean;
   isFirstOrderOnly: boolean;
