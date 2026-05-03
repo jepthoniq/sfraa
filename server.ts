@@ -737,12 +737,13 @@ async function startServer() {
         }
       }
 
-      const orderId = uuidv4();
+    const orderId = uuidv4();
+    const roundedTotal = Math.round(total / 250) * 250;
 
-      db.prepare(`
+    db.prepare(`
         INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip, notes, coupon_code, discount_amount)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes, couponCode || null, discountAmount || 0);
+      `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, roundedTotal, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes, couponCode || null, discountAmount || 0);
 
       // Update coupon usage if applicable
       if (couponCode) {
@@ -815,6 +816,19 @@ async function startServer() {
     const { sender, text } = req.body;
     const id = uuidv4();
     db.prepare("INSERT INTO messages (id, order_id, sender, text) VALUES (?, ?, ?, ?)").run(id, req.params.id, sender, text);
+    
+    // Notify the restaurant about the new message
+    const order = db.prepare("SELECT restaurant_id FROM orders WHERE id = ?").get(req.params.id) as any;
+    if (order) {
+      io.to(`restaurant-${order.restaurant_id}`).emit("new-message", { 
+        orderId: req.params.id,
+        sender,
+        text,
+        createdAt: new Date().toISOString()
+      });
+      console.log(`Notification sent for new message in order ${req.params.id}`);
+    }
+
     res.json({ id, sender, text, createdAt: new Date().toISOString() });
   });
 

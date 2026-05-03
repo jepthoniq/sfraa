@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
-import { Send, User, Store, X, MessageCircle } from "lucide-react";
+import { Send, User, Store, X, MessageCircle, Ban, ShieldCheck } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -18,9 +18,12 @@ interface ChatProps {
   onClose?: () => void;
   restaurantName?: string;
   restaurantLogo?: string;
+  customerIp?: string;
+  isBlocked?: boolean;
+  onBlockToggle?: () => void;
 }
 
-export default function Chat({ orderId, userType, onClose, restaurantName, restaurantLogo }: ChatProps) {
+export default function Chat({ orderId, userType, onClose, restaurantName, restaurantLogo, customerIp, isBlocked, onBlockToggle }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -115,11 +118,29 @@ export default function Chat({ orderId, userType, onClose, restaurantName, resta
             </p>
           </div>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 transition-all">
-            <X className="w-5 h-5" />
-          </button>
-        )}
+        <div className="flex gap-2">
+          {userType === 'restaurant' && customerIp && onBlockToggle && (
+            <button 
+              onClick={() => {
+                if(confirm(isBlocked ? "هل تريد إلغاء حظر هذا الزبون؟" : "هل تريد حظر هذا الزبون؟ لن يتمكن من الطلب مجدداً.")) {
+                  onBlockToggle();
+                }
+              }}
+              className={cn(
+                "p-2 rounded-xl transition-all",
+                isBlocked ? "text-green-600 bg-green-50 hover:bg-green-100" : "text-red-600 bg-red-50 hover:bg-red-100"
+              )}
+              title={isBlocked ? "إلغاء الحظر" : "حظر الزبون"}
+            >
+              <Ban className="w-5 h-5" />
+            </button>
+          )}
+          {onClose && (
+            <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 transition-all">
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}

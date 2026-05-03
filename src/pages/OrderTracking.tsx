@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { Order, Restaurant } from "../types";
 import { formatCurrency, cn } from "../lib/utils";
@@ -11,7 +11,9 @@ import {
   Utensils, 
   Phone, 
   MessageCircle,
+  MessageSquare,
   ChevronRight,
+  Bell,
   MapPin,
   ShoppingBag,
   ExternalLink,
@@ -37,6 +39,7 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 export default function OrderTracking() {
+  const navigate = useNavigate();
   const { orderId } = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
@@ -50,6 +53,13 @@ export default function OrderTracking() {
   const [isActiveOrdersOpen, setIsActiveOrdersOpen] = useState(false);
   const [ordersWithStatus, setOrdersWithStatus] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [totalUnread, setTotalUnread] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Initialize sound
+    audioRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+  }, []);
 
   useEffect(() => {
     if (activeOrders.length > 0) {
@@ -77,6 +87,20 @@ export default function OrderTracking() {
             localStorage.setItem("zantex_active_orders", JSON.stringify(stillActive.map(o => o.id)));
           }
           
+          let unreadSum = 0;
+          for (const o of results) {
+            if (o.status !== 'deleted') {
+              const msgs = await api.get(`/api/orders/${o.id}/messages`);
+              const lastRead = localStorage.getItem(`sufra_last_read_${o.id}`) || "0";
+              const unread = msgs.filter((m: any) => m.sender === 'restaurant' && new Date(m.createdAt).getTime() > parseInt(lastRead)).length;
+              unreadSum += unread;
+            }
+          }
+          
+          if (unreadSum > totalUnread) {
+            audioRef.current?.play().catch(e => console.log("Sound blocked"));
+          }
+          setTotalUnread(unreadSum);
           setOrdersWithStatus(results.filter(o => o.status !== 'deleted'));
         } catch (e) {
           console.error("Error fetching orders status:", e);
@@ -168,21 +192,38 @@ export default function OrderTracking() {
       {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-30">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to={`/r/${restaurant?.slug}`} className="p-2 text-gray-600">
+          <button onClick={() => navigate(-1)} className="p-2 text-gray-600">
             <ChevronRight className="w-6 h-6" />
-          </Link>
+          </button>
           <h1 className="font-bold text-lg text-gray-900">تتبع الطلب</h1>
           <div className="flex items-center gap-2">
-            {activeOrders.length > 0 && (
-              <button 
-                onClick={() => setIsActiveOrdersOpen(true)}
-                className="relative p-2 text-red-600 bg-red-50 rounded-full"
-              >
-                <ClipboardList className="w-6 h-6" />
-                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                  {activeOrders.length}
-                </span>
-              </button>
+            {(activeOrders.length > 0 || totalUnread > 0) && (
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setIsActiveOrdersOpen(true)}
+                  className="relative p-2 text-gray-500 hover:text-red-600 transition-all hover:scale-110 active:scale-95"
+                >
+                  <div className="relative">
+                    <MessageSquare className="w-6 h-6" />
+                    {totalUnread > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                        {totalUnread}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                <button 
+                  onClick={() => setIsActiveOrdersOpen(true)}
+                  className="relative p-2 text-gray-500 hover:text-red-600 transition-all hover:scale-110 active:scale-95"
+                >
+                  <div className="relative">
+                    <Bell className="w-6 h-6" />
+                    {activeOrders.length > 0 && (
+                      <span className="absolute top-1.5 right-1.5 bg-red-600 w-3 h-3 rounded-full border-2 border-white animate-pulse"></span>
+                    )}
+                  </div>
+                </button>
+              </div>
             )}
             <div className="relative">
               <ShoppingBag className={cn(
@@ -303,6 +344,12 @@ export default function OrderTracking() {
                 <span>المجموع الفرعي</span>
                 <span>{formatCurrency(order.subtotal)}</span>
               </div>
+              {order.discountAmount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                   <span>الخصم</span>
+                   <span>-{formatCurrency(order.discountAmount)}</span>
+                </div>
+              )}
               {order.type === "delivery" && (
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>أجور التوصيل</span>
@@ -311,7 +358,9 @@ export default function OrderTracking() {
               )}
               <div className="flex justify-between text-lg font-bold text-red-600 pt-2">
                 <span>الإجمالي</span>
-                <span>{formatCurrency(order.total)}</span>
+                <div className="text-left">
+                  <span className="block">{formatCurrency(order.total)}</span>
+                </div>
               </div>
             </div>
           </div>

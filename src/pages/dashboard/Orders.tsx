@@ -62,18 +62,56 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
       ]);
 
       // Show Notification
-      setNewOrderNotification(order);
+      setNewOrderNotification({ ...order, msg: "طلب جديد وصل!" });
       
       // Auto-fetch to get full details
       fetchOrders();
     });
 
-    const fetchOrders = async () => {
+    socket.on("new-message", (data) => {
+      // Play Sound for message
+      if (audioRef.current) {
+        audioRef.current.play().catch(e => console.log("Sound play error:", e));
+      }
+      
+      setUnreadCounts(prev => ({
+        ...prev,
+        [data.orderId]: (prev[data.orderId] || 0) + 1
+      }));
+
+      // Find the order and set it as selected
+      const currentOrder = orders.find(o => o.id === data.orderId);
+      if (currentOrder) {
+        setSelectedOrder(currentOrder);
+        setShowChat(true);
+      } else {
+        // If not in current list, fetch orders then try to find it
+        fetchOrders().then((newOrders) => {
+          const found = newOrders.find((o: any) => o.id === data.orderId);
+          if (found) {
+            setSelectedOrder(found);
+            setShowChat(true);
+          }
+        });
+      }
+
+      // Show Notification
+      setNewOrderNotification({ 
+        orderId: data.orderId, 
+        total: 0, 
+        msg: "رسالة جديدة من زبون",
+        customerName: data.sender === 'customer' ? 'الزبون' : 'المطعم'
+      });
+    });
+
+    const fetchOrders = async (): Promise<Order[]> => {
       try {
         const data = await api.get(`/api/restaurants/${restaurantId}/orders`);
         setOrders(data);
+        return data;
       } catch (e) {
         console.error(e);
+        return [];
       }
     };
 
@@ -247,11 +285,13 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
                 <Bell className="w-6 h-6" />
               </div>
               <div className="flex-1">
-                <p className="font-black text-red-500 text-xs mb-1">طلب جديد وصل!</p>
+                <p className="font-black text-red-500 text-xs mb-1">{newOrderNotification.msg}</p>
                 <p className="font-bold text-sm">
-                  {newOrderNotification.type === 'delivery' ? `توصيل لـ ${newOrderNotification.customerName}` : `طاولة رقم ${newOrderNotification.tableNumber}`}
+                  {newOrderNotification.type === 'delivery' ? `توصيل لـ ${newOrderNotification.customerName}` : 
+                   newOrderNotification.tableNumber ? `طاولة رقم ${newOrderNotification.tableNumber}` : 
+                   newOrderNotification.customerName || 'إشعار جديد'}
                 </p>
-                <p className="text-[10px] text-gray-400">{formatCurrency(newOrderNotification.total)}</p>
+                {newOrderNotification.total > 0 && <p className="text-[10px] text-gray-400">{formatCurrency(newOrderNotification.total)}</p>}
               </div>
               <button 
                 onClick={() => setNewOrderNotification(null)}
@@ -612,6 +652,12 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
                       <span>المجموع الفرعي</span>
                       <span>{formatCurrency(selectedOrder.subtotal)}</span>
                     </div>
+                    {selectedOrder.discountAmount > 0 && (
+                      <div className="flex justify-between text-green-400 text-sm">
+                        <span>الخصم</span>
+                        <span>-{formatCurrency(selectedOrder.discountAmount)}</span>
+                      </div>
+                    )}
                     {selectedOrder.type === "delivery" && (
                       <div className="flex justify-between text-gray-400 text-sm">
                         <span>أجور التوصيل</span>
@@ -654,6 +700,9 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
                 orderId={selectedOrder.id} 
                 userType="restaurant" 
                 onClose={() => setShowChat(false)} 
+                customerIp={selectedOrder.customerIp}
+                isBlocked={blockedIPs.includes(selectedOrder.customerIp || "")}
+                onBlockToggle={() => selectedOrder.customerIp && toggleBlock(selectedOrder.customerIp)}
               />
             </motion.div>
           </div>

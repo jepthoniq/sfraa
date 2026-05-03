@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { Restaurant, MenuCategory, MenuItem, DeliveryZone, OrderItem } from "../types";
-import { formatCurrency, cn } from "../lib/utils";
+import { formatCurrency, cn, roundToNearest250 } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingBag, MapPin, Utensils, Phone, Clock, ChevronRight, X, Search, Plus, Minus, Map as MapIcon, ClipboardList, MessageCircle, Trash2, MessageSquare, Ban, Ticket, Bell, Megaphone, User, LogOut, Smartphone } from "lucide-react";
 import Chat from "../components/Chat";
@@ -47,6 +47,12 @@ export default function PublicMenu() {
   const [totalUnread, setTotalUnread] = useState(0);
   const [selectedChatOrderId, setSelectedChatOrderId] = useState<string | null>(null);
   const [addingItemId, setAddingItemId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Initialize sound
+    audioRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+  }, []);
 
   // Delivery info
   const [customerName, setCustomerName] = useState("");
@@ -126,6 +132,10 @@ export default function PublicMenu() {
               const msgs = await api.get(`/api/orders/${order.id}/messages`);
               const lastRead = localStorage.getItem(`sufra_last_read_${order.id}`) || "0";
               const unread = msgs.filter((m: any) => m.sender === 'restaurant' && new Date(m.createdAt).getTime() > parseInt(lastRead)).length;
+              if (unread > (unreadMessages[order.id] || 0)) {
+                // Play sound for new messages
+                audioRef.current?.play().catch(e => console.log("Sound blocked"));
+              }
               newUnreadCounts[order.id] = unread;
               unreadSum += unread;
             }
@@ -375,7 +385,7 @@ export default function PublicMenu() {
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
   const discountAmount = appliedCoupon ? Math.floor(subtotal * (Number(appliedCoupon.discountPercentage) / 100)) : 0;
   const deliveryFee = orderType === "delivery" ? (Number(selectedZone?.fee) || 0) : 0;
-  const total = Math.max(0, subtotal - discountAmount + deliveryFee);
+  const total = roundToNearest250(Math.max(0, subtotal - discountAmount + deliveryFee));
 
   const handleSendOTP = async () => {
     if (!customerPhone || !restaurant) return;
@@ -728,23 +738,34 @@ export default function PublicMenu() {
           </div>
 
           <div className="flex items-center gap-1 md:gap-3">
-            {/* Consolidated Notification Center */}
+            {/* Consolidated Notification & Chat Center */}
             {(user || activeOrders.length > 0 || totalUnread > 0) && (
-              <button 
-                onClick={() => setIsActiveOrdersOpen(true)}
-                className="relative p-2 text-gray-500 hover:text-theme transition-all hover:scale-110 active:scale-95"
-                title="الإشعارات والطلبات"
-              >
-                <Bell className="w-6 h-6" />
-                {(totalUnread > 0 || activeOrders.length > 0) && (
-                  <span className="absolute top-1.5 right-1.5 bg-theme w-3 h-3 rounded-full border-2 border-white animate-pulse"></span>
-                )}
-                {totalUnread > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
-                    {totalUnread}
-                  </span>
-                )}
-              </button>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setIsActiveOrdersOpen(true)}
+                  className="relative p-2 text-gray-500 hover:text-theme transition-all hover:scale-110 active:scale-95"
+                  title="الطلبات والرسائل"
+                >
+                  <div className="relative">
+                    <MessageSquare className="w-6 h-6" />
+                    {totalUnread > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-theme text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                        {totalUnread}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                <button 
+                  onClick={() => setIsActiveOrdersOpen(true)}
+                  className="relative p-2 text-gray-500 hover:text-theme transition-all hover:scale-110 active:scale-95"
+                  title="الإشعارات"
+                >
+                  <Bell className="w-6 h-6" />
+                  {activeOrders.length > 0 && (
+                    <span className="absolute top-1.5 right-1.5 bg-theme w-3 h-3 rounded-full border-2 border-white animate-pulse"></span>
+                  )}
+                </button>
+              </div>
             )}
 
             {user ? (
@@ -921,6 +942,17 @@ export default function PublicMenu() {
                         <span className="text-white text-xs font-bold uppercase tracking-widest bg-theme px-3 py-1 rounded-full">نفذت</span>
                       </div>
                     )}
+                    {restaurant.whatsappNumber && (
+                      <a 
+                        href={`https://wa.me/${restaurant.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(`مرحباً، أود الاستفسار عن وجبة: ${item.name}`)}`}
+                        target="_blank"
+                        className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm p-2 rounded-xl shadow-lg text-theme hover:scale-110 active:scale-95 transition-all z-10"
+                        title="استفسار عن الوجبة"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                      </a>
+                    )}
                   </div>
                   
                   <div className="p-4 flex-1 flex flex-col">
@@ -1062,6 +1094,9 @@ export default function PublicMenu() {
                         </div>
                         <div className="text-left">
                           <p className="font-black text-theme">{formatCurrency(order.total)}</p>
+                          {order.discountAmount > 0 && (
+                            <p className="text-[10px] text-green-600 font-bold">خصم {formatCurrency(order.discountAmount)}</p>
+                          )}
                           <ChevronRight className="w-5 h-5 text-gray-300 inline-block mt-1 group-hover:translate-x-[-4px] transition-transform" />
                         </div>
                       </div>
