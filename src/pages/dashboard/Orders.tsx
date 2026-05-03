@@ -64,44 +64,47 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
       // Show Notification
       setNewOrderNotification({ ...order, msg: "طلب جديد وصل!" });
       
+      // Auto-hide after 3 seconds
+      setTimeout(() => {
+        setNewOrderNotification(prev => prev?.id === order.id ? null : prev);
+      }, 3000);
+      
       // Auto-fetch to get full details
       fetchOrders();
     });
 
     socket.on("new-message", (data) => {
-      // Play Sound for message
-      if (audioRef.current) {
-        audioRef.current.play().catch(e => console.log("Sound play error:", e));
-      }
-      
-      setUnreadCounts(prev => ({
-        ...prev,
-        [data.orderId]: (prev[data.orderId] || 0) + 1
-      }));
+      // Only play sound and show notification if message is from CUSTOMER
+      if (data.sender === 'customer') {
+        if (audioRef.current) {
+          audioRef.current.play().catch(e => console.log("Sound play error:", e));
+        }
 
-      // Find the order and set it as selected
-      const currentOrder = orders.find(o => o.id === data.orderId);
-      if (currentOrder) {
-        setSelectedOrder(currentOrder);
-        setShowChat(true);
-      } else {
-        // If not in current list, fetch orders then try to find it
-        fetchOrders().then((newOrders) => {
-          const found = newOrders.find((o: any) => o.id === data.orderId);
-          if (found) {
-            setSelectedOrder(found);
-            setShowChat(true);
-          }
+        setUnreadCounts(prev => ({
+          ...prev,
+          [data.orderId]: (prev[data.orderId] || 0) + 1
+        }));
+
+        // Find the order and set it as selected
+        const currentOrder = orders.find(o => o.id === data.orderId);
+        if (currentOrder) {
+          setSelectedOrder(currentOrder);
+          setShowChat(true);
+        }
+
+        // Show Notification
+        setNewOrderNotification({ 
+          orderId: data.orderId, 
+          total: 0, 
+          msg: "رسالة جديدة من زبون",
+          customerName: 'الزبون'
         });
-      }
 
-      // Show Notification
-      setNewOrderNotification({ 
-        orderId: data.orderId, 
-        total: 0, 
-        msg: "رسالة جديدة من زبون",
-        customerName: data.sender === 'customer' ? 'الزبون' : 'المطعم'
-      });
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          setNewOrderNotification(prev => prev?.msg === "رسالة جديدة من زبون" ? null : prev);
+        }, 3000);
+      }
     });
 
     const fetchOrders = async (): Promise<Order[]> => {
@@ -308,7 +311,15 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
           <h1 className="text-2xl font-bold text-gray-900">الطلبات الحالية</h1>
           <p className="text-gray-500">إدارة ومتابعة طلبات الزبائن مباشرة</p>
         </div>
-        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100 overflow-x-auto no-scrollbar max-w-full">
+        <div className="flex items-center gap-4">
+          {/* Global Unread Messages Counter */}
+          {Object.values(unreadCounts).reduce((a, b) => a + b, 0) > 0 && (
+            <div className="flex items-center gap-2 bg-red-50 px-4 py-2 rounded-xl text-red-600 font-bold animate-bounce shadow-sm border border-red-100">
+              <MessageSquare className="w-5 h-5 text-red-500" />
+              <span>{Object.values(unreadCounts).reduce((a, b) => a + b, 0)} رسائل جديدة</span>
+            </div>
+          )}
+          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100 overflow-x-auto no-scrollbar max-w-full">
           <button 
             onClick={() => setFilter("active")}
             className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter === "active" ? "bg-red-600 text-white" : "text-gray-600")}
@@ -345,6 +356,7 @@ export default function Orders({ restaurantId }: { restaurantId?: string }) {
           </button>
         </div>
       </div>
+    </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Orders List */}

@@ -92,12 +92,14 @@ export default function OrderTracking() {
             if (o.status !== 'deleted') {
               const msgs = await api.get(`/api/orders/${o.id}/messages`);
               const lastRead = localStorage.getItem(`sufra_last_read_${o.id}`) || "0";
+              // ONLY count admin messages
               const unread = msgs.filter((m: any) => m.sender === 'restaurant' && new Date(m.createdAt).getTime() > parseInt(lastRead)).length;
               unreadSum += unread;
             }
           }
           
           if (unreadSum > totalUnread) {
+            // Only play if message is from restaurant
             audioRef.current?.play().catch(e => console.log("Sound blocked"));
           }
           setTotalUnread(unreadSum);

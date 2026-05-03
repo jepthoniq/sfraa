@@ -131,9 +131,10 @@ export default function PublicMenu() {
             if (order.status !== 'deleted') {
               const msgs = await api.get(`/api/orders/${order.id}/messages`);
               const lastRead = localStorage.getItem(`sufra_last_read_${order.id}`) || "0";
+              // ONLY count messages from RESTAURANT (for the customer)
               const unread = msgs.filter((m: any) => m.sender === 'restaurant' && new Date(m.createdAt).getTime() > parseInt(lastRead)).length;
               if (unread > (unreadMessages[order.id] || 0)) {
-                // Play sound for new messages
+                // Play sound for new messages from admin
                 audioRef.current?.play().catch(e => console.log("Sound blocked"));
               }
               newUnreadCounts[order.id] = unread;
