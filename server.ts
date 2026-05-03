@@ -697,38 +697,6 @@ async function startServer() {
     }
   });
 
-  app.get("/api/restaurants/:id", (req, res) => {
-    const restaurant = db.prepare("SELECT * FROM restaurants WHERE id = ?").get(req.params.id) as any;
-    if (!restaurant) return res.status(404).json({ error: "Not found" });
-    res.json({
-      ...restaurant,
-      ownerId: restaurant.owner_id,
-      minOrder: restaurant.min_order,
-      isDeliveryEnabled: !!restaurant.is_delivery_enabled,
-      whatsappNumber: restaurant.whatsapp_number,
-      themeColor: restaurant.theme_color,
-      subscriptionStatus: restaurant.subscription_status,
-      subscriptionStartedAt: restaurant.subscription_started_at,
-      subscriptionExpiresAt: restaurant.subscription_expires_at,
-      address: restaurant.address,
-      phone: restaurant.phone
-    });
-  });
-
-  app.put("/api/restaurants/me", authenticate, (req: any, res) => {
-    const { name, minOrder, isDeliveryEnabled, whatsappNumber, themeColor, dashboardColor, address, phone } = req.body;
-    db.prepare(`
-      UPDATE restaurants 
-      SET name = ?, min_order = ?, is_delivery_enabled = ?, whatsapp_number = ?, theme_color = ?, address = ?, phone = ? 
-      WHERE owner_id = ?
-    `).run(name, minOrder, isDeliveryEnabled ? 1 : 0, whatsappNumber, themeColor, address, phone, req.user.id);
-    
-    if (dashboardColor) {
-      db.prepare("UPDATE users SET dashboard_color = ? WHERE id = ?").run(dashboardColor, req.user.id);
-    }
-    
-    res.json({ success: true });
-  });
 
   app.delete("/api/admin/restaurants/:id", authenticateSuperAdmin, (req, res) => {
     const restaurant = db.prepare("SELECT owner_id FROM restaurants WHERE id = ?").get(req.params.id) as any;
@@ -748,53 +716,58 @@ async function startServer() {
   });
 
   app.post("/api/orders", (req, res) => {
-    const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, notes, couponCode, discountAmount } = req.body;
-    
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    try {
+      const { restaurantId, type, items, subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, notes, couponCode, discountAmount } = req.body;
+      
+      const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
 
-    // Check if IP is blocked
-    if (ip) {
-      const isIpBlocked = db.prepare("SELECT 1 FROM blocked_ips WHERE restaurant_id = ? AND ip = ?").get(restaurantId, ip);
-      if (isIpBlocked) {
-        return res.status(403).json({ error: "عذراً، لقد تم حظر جهازك من قبل المطعم." });
+      // Check if IP is blocked
+      if (ip) {
+        const isIpBlocked = db.prepare("SELECT 1 FROM blocked_ips WHERE restaurant_id = ? AND ip = ?").get(restaurantId, ip);
+        if (isIpBlocked) {
+          return res.status(403).json({ error: "عذراً، لقد تم حظر جهازك من قبل المطعم." });
+        }
       }
-    }
 
-    // Check if user is blocked
-    if (customerPhone) {
-      const isBlocked = db.prepare("SELECT 1 FROM blocked_users WHERE restaurant_id = ? AND phone = ?").get(restaurantId, customerPhone);
-      if (isBlocked) {
-        return res.status(403).json({ error: "عذراً، لا يمكن إتمام الطلب. يرجى التواصل مع المطعم." });
+      // Check if user is blocked
+      if (customerPhone) {
+        const isBlocked = db.prepare("SELECT 1 FROM blocked_users WHERE restaurant_id = ? AND phone = ?").get(restaurantId, customerPhone);
+        if (isBlocked) {
+          return res.status(403).json({ error: "عذراً، لا يمكن إتمام الطلب. يرجى التواصل مع المطعم." });
+        }
       }
+
+      const orderId = uuidv4();
+
+      db.prepare(`
+        INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip, notes, coupon_code, discount_amount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes, couponCode || null, discountAmount || 0);
+
+      // Update coupon usage if applicable
+      if (couponCode) {
+        db.prepare("UPDATE coupons SET usage_count = usage_count + 1 WHERE restaurant_id = ? AND code = ?").run(restaurantId, couponCode);
+      }
+
+      for (const item of items) {
+        db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);
+      }
+
+      // Real-time Notification
+      io.to(`restaurant-${restaurantId}`).emit("new-order", { 
+        id: orderId, 
+        type, 
+        total, 
+        customerName, 
+        tableNumber,
+        createdAt: new Date().toISOString()
+      });
+
+      res.json({ id: orderId });
+    } catch (error: any) {
+      console.error("Create Order Error:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى." });
     }
-
-    const orderId = uuidv4();
-
-    db.prepare(`
-      INSERT INTO orders (id, restaurant_id, type, status, subtotal, delivery_fee, total, customer_name, customer_phone, customer_address, customer_zone, google_maps_link, table_number, customer_ip, notes, coupon_code, discount_amount)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(orderId, restaurantId, type, 'pending', subtotal, deliveryFee, total, customerName, customerPhone, customerAddress, customerZone, googleMapsLink, tableNumber, ip, notes, couponCode || null, discountAmount || 0);
-
-    // Update coupon usage if applicable
-    if (couponCode) {
-      db.prepare("UPDATE coupons SET usage_count = usage_count + 1 WHERE restaurant_id = ? AND code = ?").run(restaurantId, couponCode);
-    }
-
-    for (const item of items) {
-      db.prepare("INSERT INTO order_items (id, order_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)").run(uuidv4(), orderId, item.name, item.price, item.quantity);
-    }
-
-    // Real-time Notification
-    io.to(`restaurant-${restaurantId}`).emit("new-order", { 
-      id: orderId, 
-      type, 
-      total, 
-      customerName, 
-      tableNumber,
-      createdAt: new Date().toISOString()
-    });
-
-    res.json({ id: orderId });
   });
 
   app.patch("/api/orders/:id/status", authenticate, (req, res) => {

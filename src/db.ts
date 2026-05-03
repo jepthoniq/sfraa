@@ -5,82 +5,6 @@ import path from "path";
 const db = new Database("sufra.db");
 
 // Initialize tables
-try {
-  db.prepare("ALTER TABLE orders ADD COLUMN customer_ip TEXT").run();
-} catch (e) {
-  // Column probably already exists
-}
-
-try {
-  db.prepare("ALTER TABLE orders ADD COLUMN notes TEXT").run();
-} catch (e) {
-  // Column probably already exists
-}
-
-try {
-  db.prepare("ALTER TABLE items ADD COLUMN discount_price REAL").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN subscription_expires_at DATETIME").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN theme_color TEXT DEFAULT '#dc2626'").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN subscription_started_at DATETIME DEFAULT CURRENT_TIMESTAMP").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN dashboard_color TEXT DEFAULT '#dc2626'").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN address TEXT").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN phone TEXT").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE orders ADD COLUMN discount_amount REAL DEFAULT 0").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE orders ADD COLUMN coupon_code TEXT").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN phone TEXT UNIQUE").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN verification_code TEXT").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN phone_verified INTEGER DEFAULT 0").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'manager'").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN whatsapp_instance_id TEXT").run();
-} catch (e) {}
-
-try {
-  db.prepare("ALTER TABLE restaurants ADD COLUMN whatsapp_token TEXT").run();
-} catch (e) {}
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS coupons (
     id TEXT PRIMARY KEY,
@@ -128,6 +52,8 @@ db.exec(`
     min_order REAL DEFAULT 0,
     is_delivery_enabled INTEGER DEFAULT 1,
     whatsapp_number TEXT,
+    whatsapp_instance_id TEXT,
+    whatsapp_token TEXT,
     theme_color TEXT DEFAULT '#dc2626',
     subscription_status TEXT DEFAULT 'trial',
     subscription_started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -181,6 +107,8 @@ db.exec(`
     table_number TEXT,
     customer_ip TEXT,
     notes TEXT,
+    coupon_code TEXT,
+    discount_amount REAL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
   );
@@ -221,5 +149,36 @@ db.exec(`
     FOREIGN KEY(restaurant_id) REFERENCES restaurants(id)
   );
 `);
+
+// Column additions for existing databases
+const migrations = [
+  "ALTER TABLE orders ADD COLUMN customer_ip TEXT",
+  "ALTER TABLE orders ADD COLUMN notes TEXT",
+  "ALTER TABLE items ADD COLUMN discount_price REAL",
+  "ALTER TABLE restaurants ADD COLUMN subscription_expires_at DATETIME",
+  "ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0",
+  "ALTER TABLE restaurants ADD COLUMN theme_color TEXT DEFAULT '#dc2626'",
+  "ALTER TABLE restaurants ADD COLUMN subscription_started_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+  "ALTER TABLE users ADD COLUMN dashboard_color TEXT DEFAULT '#dc2626'",
+  "ALTER TABLE restaurants ADD COLUMN address TEXT",
+  "ALTER TABLE restaurants ADD COLUMN phone TEXT",
+  "ALTER TABLE orders ADD COLUMN discount_amount REAL DEFAULT 0",
+  "ALTER TABLE orders ADD COLUMN coupon_code TEXT",
+  "ALTER TABLE users ADD COLUMN phone TEXT UNIQUE",
+  "ALTER TABLE users ADD COLUMN verification_code TEXT",
+  "ALTER TABLE users ADD COLUMN phone_verified INTEGER DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'manager'",
+  "ALTER TABLE restaurants ADD COLUMN whatsapp_instance_id TEXT",
+  "ALTER TABLE restaurants ADD COLUMN whatsapp_token TEXT"
+];
+
+for (const migration of migrations) {
+  try {
+    db.prepare(migration).run();
+  } catch (e) {
+    // Column probably already exists or table doesn't exist yet (though we just created them)
+  }
+}
+
 
 export default db;
